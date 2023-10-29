@@ -1,0 +1,6 @@
+export OPEN_AI_KEY=<Your Key>
+export NEWSAPI_KEY=<Your Key>
+export PG_HOST=<Your Host>
+export PG_DB=<Your DB>
+export PG_USER=<Your User>
+export PG_PASS=<Your Password>

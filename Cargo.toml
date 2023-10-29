@@ -1,0 +1,56 @@
+[package]
+name = "news"
+version = "0.1.0"
+edition = "2021"
+authors = ["Chris Dipple <chris@intelligent-net.co.uk>"]
+license = "MIT OR Apache-2.0"
+description = "News Service for Digital signage feed"
+homepage = "https://github.com/intelligentnet/news"
+repository = "https://github.com/intelligentnet/news"
+keywords = ["news", "signage", "GPT"]
+categories = ["multimedia", "text prpcessing"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#dotenv = "0.15.0"
+reqwest = { version = "0.11", features = ["json"] }
+serde = "1"
+serde_json = "1"
+serde_derive = "1"
+serde-xml-rs = "0.6"
+tokio = { version = "1", features = ["full"] }
+#scraper = "0.17.1"
+image = "0.24.7"
+crossterm = "0.27.0"
+imageproc = "0.23.0"
+rusttype = "0.9.3"
+ril = { version = "0", features = ["png"] }
+chrono = { version = "0.4", default-features = false }
+html2text = "0.6.0"
+stringreader = "0.1"
+#crc32fast = "1.3.2"
+regex = "1.9.6"
+actix-web = { version="4", features = ["openssl"] }
+actix-files = "0.6.2"
+actix-rt = "2.9.0"
+openssl = "0.10"
+env_logger = "0.10"
+urlencoding = "2.1.3"
+#actix-web-middleware-redirect-https = "3.0.1"
+#tinytemplate = "1.1"
+#postgres = {version = "0.19", features = ["with-chrono-0_4"]}
+pgvector = { version = "0.3", features = ["postgres"] }
+tokio-postgres = {version = "0.7", features = ["with-chrono-0_4"]}
+whichlang = "0.1.0"
+#lingua = "1.5"
+
+[dev-dependencies]
+#mockall = "0.10"
+
+[profile.release]
+strip = true
+opt-level = 3
+#opt-level = "s"
+#lto = true
+#panic = "abort"
