@@ -16,7 +16,7 @@ Run the server with :
 
 	cargo run --release
 
-The Web site is available at https://<my URL>/news
+The Web site is available at https://my_URL/news
 
 Enjoy.
 
