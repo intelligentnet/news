@@ -2,7 +2,7 @@
 A News server with bullet points for topical news items. Used as digital signage feed at http://targetr.net
 
 For you to do :
--	Get ann https certificate and create cert.pem and key.pem files
+-	Get an https certificate and create cert.pem and key.pem files
 -	Create an OpenAI API account
 -	Open an NewsAPI account
 -	Set up PostgreSQL with an account username and password
@@ -10,10 +10,13 @@ For you to do :
 -	Install latest Rust compiler with rustup
 -	Edit the env file and run: . ./env in shell
 -	Edit prompt.html file for your URL and desired appearance
+-	Create a 'gen' directory for receiving generated files
 
 Run the server with :
 
 	cargo run --release
+
+The Web site is available at https://<my URL>/news
 
 Enjoy.
 
