@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-pub fn make_call(call: &str, paras: HashMap<&str, &str>) -> String {
+pub fn make_call(call: &str, paras: &HashMap<&str, &str>) -> String {
     let mut call = call.to_string();
     let mut sep = if call.contains('?') { "&" } else { "?" };
 

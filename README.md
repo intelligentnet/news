@@ -30,5 +30,6 @@ TODO
   persistence
 - Add additional News Suppliers
 - Add Additional LLMs to use. Currently GPT-3.5 or can use GPT-4 (expensive)
+- Refine prompts to LLMs further and make this user accessible
 
 Contact http://TargetR.net for a full digital signage solution!

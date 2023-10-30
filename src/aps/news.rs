@@ -4,10 +4,10 @@ use std::error::Error;
 use reqwest::Client;
 use chrono::{DateTime, Duration, Utc};
 use tokio_postgres::NoTls;
-use whichlang::{detect_language, Lang};
+//use whichlang::{detect_language, Lang};
 use crate::image::render::mk_image;
 use crate::apis::{newsapi::News, call_builder::make_call};
-use crate::llm::gpt::{llm_news_items, llm_title, truncate, SUMMARIZE_ERROR};
+use crate::llm::gpt::{llm_news, truncate, SUMMARIZE_ERROR};
 use crate::image::render::{PAGE_TOTAL, mk_filename};
 use crate::db::postgres::*;
 use itertools::Itertools;
@@ -82,7 +82,6 @@ pub async fn news(prompt: &str) -> Result<String, Box<dyn Error>> {
     // Core processing with given news
     let mut count = 0;
     let mut articles: Vec<(String, String, String)> = vec![];
-    let news_len = news.len();
 
     let client = Client::builder()
         .user_agent("TargetR")
@@ -92,7 +91,7 @@ pub async fn news(prompt: &str) -> Result<String, Box<dyn Error>> {
 
     // seq must monotonically increase, but can have gaps
     for (seq, n) in news.into_iter().enumerate() {
-        let mut title = n.title;
+        let title = n.title;
 
         if count < PAGE_TOTAL {
             if titles.contains(&title) {
@@ -101,35 +100,11 @@ pub async fn news(prompt: &str) -> Result<String, Box<dyn Error>> {
                 eprintln!("Duplicate title: {title}");
                 del_news_item(&mut pg_client, &prompt, &n.url).await?;
                 continue
-            } else if detect_language(&title) != Lang::Eng {
-                if news_len - seq > 10 {
-                    // Not our language and plenty more opportunities so skip
-                    eprintln!("Skipping: title wrong language");
-                    del_news_item(&mut pg_client, &prompt, &n.url).await?;
-                    continue
-                }
-                match llm_title(&title).await {
-                    Ok(trans_title) if bad_translations(&trans_title) => {
-                        eprintln!("Skipping: title {}", &trans_title);
-                        del_news_item(&mut pg_client, &prompt, &n.url).await?;
-                        continue
-                    },
-                    Ok(trans_title) => {
-                        title = trans_title
-                    },
-                    Err(e) => {
-                        eprintln!("Translation error: {e}");
-                        del_news_item(&mut pg_client, &prompt, &n.url).await?;
-                        continue
-                    }
-                }
             }
-
-            title = truncate(&title, 150).into();
 
             titles.insert(title.clone());
 
-            let res: Result<String, Box<dyn Error + Send>> = 
+            let res: Result<(String, String), Box<dyn Error + Send>> = 
                 match n.summary {
                     None => {
                         // Make the GET request to the source news url
@@ -144,20 +119,25 @@ pub async fn news(prompt: &str) -> Result<String, Box<dyn Error>> {
                             };
 
                         // Make the GET request to the source news url
-                        llm_news_items(prompt, &title, &body, PAGE_TOTAL).await
+                        llm_news(prompt, &title, &body, PAGE_TOTAL).await
                     },
                     Some(summary) => {
-                        Ok(summary)
+                        Ok((title, summary))
                     },
                 };
 
             match res {
-                Ok(res_str) if bad_translations(&res_str) => {
-                        eprintln!("Skipping: title {}", &res_str);
-                        del_news_item(&mut pg_client, &prompt, &n.url).await?;
-                        continue
+                Ok((title, res_str)) if bad_translations(&title) || bad_translations(&res_str) => {
+                    if bad_translations(&title) {
+                        eprintln!("Skipping: Title {}", &title);
+                    } else {
+                        eprintln!("Skipping: Body {}", &res_str);
+                    }
+                    del_news_item(&mut pg_client, &prompt, &n.url).await?;
+                    continue
                 }
-                Ok(res_str) => {
+                Ok((title, res_str)) => {
+                    let title: String = truncate(&title, 150).into();
                     articles.push((n.source.clone(), title.clone(), res_str.clone()));
                     let news_item = 
                         DbNewsItem{url: n.url, prompt: prompt.into(), source: n.source, title: title, summary: Some(res_str), queried: true, dt: Utc::now()};
@@ -214,23 +194,30 @@ async fn get_news(search: &str) -> Result<News, Box<dyn Error>> {
     paras.insert("sortBy", "popularity");
     paras.insert("q", search);
 
-    let call = make_call("https://newsapi.org/v2/everything", paras);
-    //let call = make_call("https://newsapi.org/v2/top-headlines", paras);
-//println!("### {call}");
+    let call = make_call("https://newsapi.org/v2/top-headlines", &paras);
 
+    let news = get_enough(search, &call).await?;
+
+    if news.articles.len() > 10 {
+        Ok(news)
+    } else {
+        let call = make_call("https://newsapi.org/v2/everything", &paras);
+
+        get_enough(search, &call).await
+    }
+}
+
+async fn get_enough(search: &str, call: &str) -> Result<News, Box<dyn Error>> {
     let client = Client::builder()
         .user_agent("TargetR")
         .timeout(std::time::Duration::new(10, 0))
         .build()?;
-//println!("1 {:?}", client);
 
     // Make the secure GET request to the news source
     let resp = client.get(call).send().await?;
-//println!("2 {:?}", response);
 
     // Read the response body as a string
     let body = resp.text().await?;
-//println!("{:?}", body);
 
     let mut news: News = serde_json::from_str(&body)?;
     let uniq_articles: Vec<_> = news.articles.into_iter().unique().collect();

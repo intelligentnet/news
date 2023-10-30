@@ -54,13 +54,33 @@ pub async fn llm_code(req: &str) -> Result<String, Box<dyn std::error::Error + S
 }
 
 pub async fn llm_title(req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
-    llm_news_items_with_context(&mut [], &mut ["Summarize in English", "Summarize in less then 15 words", "Summarize in 1 paragraph.", &format!("If cannot summarize say '{SUMMARIZE_ERROR}' only")], req).await
+    llm_news_items_with_context(&mut [], &mut ["Summarize in English in less then 15 words.", &format!("If cannot summarize say '{SUMMARIZE_ERROR}' only")], req).await
 }
 
 pub async fn llm_news_items(prompt: &str, title: &str, req: &str, its: u32) -> Result<String, Box<dyn std::error::Error + Send>> {
     let sum_len = (50 * PAGE_TOTAL) / its;
     let word_len = sum_len / 10;
-    llm_news_items_with_context(&mut [], &mut [&format!("Summarize with less than {sum_len} words"), "Explain as simply as possible", "Only process if written in English", &format!("Summary must explain {prompt}"), &format!("Summary must be relevant to: {title}"), &format!("No sentences longer than {word_len} words"), &format!("If cannot summarize say '{SUMMARIZE_ERROR}' only")], req).await
+    llm_news_items_with_context(&mut [], &mut [&format!("Summarize with less than {sum_len} words"), "Explain as simply as possible", &format!("Summary must explain {prompt}"), &format!("Summary must be relevant to: {title}"), &format!("No sentences longer than {word_len} words"), &format!("If cannot summarize say '{SUMMARIZE_ERROR}' only")], req).await
+}
+
+pub async fn llm_news(prompt: &str, title: &str, body: &str, its: u32) -> Result<(String, String), Box<dyn std::error::Error + Send>> {
+    let req = format!("TITLE: {title}\nTEXT: {body}");
+
+    llm_news_text(prompt, &req, its).await
+}
+
+pub async fn llm_news_text(prompt: &str, req: &str, its: u32) -> Result<(String, String), Box<dyn std::error::Error + Send>> {
+    let sum_len = (50 * PAGE_TOTAL) / its;
+    let word_len = sum_len / 7;
+    let res = llm_news_items_with_context(&mut [], &mut ["Text is supplied as TITLE and BODY, translate both into English", "Summarize TITLE in less that 15 words in a single sentence", &format!("Summarize BODY with less than {sum_len} words"), "Explain as simply as possible", &format!("BODY summary must explain {prompt}"), &format!("BODY summary must be relevant to TITLE"), &format!("No BODY sentences longer than {word_len} words"), &format!("If cannot summarize say '{SUMMARIZE_ERROR}' only"), "Output TITLE and BODY separately marked as 'TITLE:' and 'BODY:'"], req).await?;
+
+    let parts: Vec<&str> = res.split("BODY:").collect();
+
+    if parts.len() != 2 {
+        Ok((SUMMARIZE_ERROR.into(), SUMMARIZE_ERROR.into()))
+    } else {
+        Ok((parts[0][6..].trim().into(), parts[1].trim().into()))
+    }
 }
 
 pub async fn llm_news_items_with_context(prior: &mut [&str], context: &mut [&str], req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
