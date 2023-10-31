@@ -14,6 +14,11 @@ struct FormData {
     domain: Option<String>,
 }
 
+#[get("/news.json")]
+async fn service_builder() -> impl Responder {
+    NamedFile::open_async("news.json").await
+}
+
 #[get("/favicon.ico")]
 async fn favicon() -> impl Responder {
     NamedFile::open_async("favicon.ico").await
@@ -41,6 +46,17 @@ async fn index(info: web::Query<std::collections::HashMap<String, String>>) -> i
         Err(_) => 
             HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
     }
+}
+
+#[get("/bench")]
+async fn bench(info: web::Query<std::collections::HashMap<String, u32>>) -> impl Responder {
+    let params = info.into_inner();
+    let seq = params.get("seq").map_or(0, |&i| i as u32);
+    let secs = params.get("secs").map_or(10, |&i| i as u32);
+
+    std::thread::sleep(std::time::Duration::from_secs(secs.into()));
+
+    HttpResponse::Ok().body(format!("{seq} = {secs}"))
 }
 
 #[get("/gen/{file}")]
@@ -121,11 +137,13 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::DefaultHeaders::new().add(("Cache-Control", "public, max-age=10800")))
             .wrap(middleware::Logger::default())
             .wrap(middleware::Logger::new("%a %{User-Agent}i"))
+            .service(service_builder)
             .service(favicon)
             .service(spinner)
             .service(index)
             .route("/submit", web::post().to(process_form))
             .service(gen)
+            .service(bench)
     })
     .keep_alive(Duration::from_secs(60 * TIMEOUT_PERIOD as u64))
     .bind("0.0.0.0:8080")?

@@ -228,17 +228,18 @@ async fn get_enough(search: &str, call: &str) -> Result<News, Box<dyn Error>> {
 }
 
 fn bad_translations(res: &str) -> bool {
+    let res = res.to_lowercase();
     res.len() < 30 ||
     res.to_uppercase().starts_with(SUMMARIZE_ERROR) ||      // LLM working produces this
-    res.contains("JavaScript and cookies") ||
-    res.contains("HTML") ||
-    res.starts_with("The text") ||
-    res.starts_with("This text") ||
-    //res.starts_with("The article") ||
-    res.starts_with("I apologise") ||
-    res.starts_with("I'm sorry") ||
-    res.starts_with("Sorry") ||
-    res.starts_with("This is a webpage") ||
-    res.starts_with("WATCH:") ||
-    res.starts_with("The website")
+    res.contains("javascript") ||
+    res.contains(" html ") ||
+    (res.contains("access") && res.contains("denied")) ||
+    res.starts_with("the text") ||
+    res.starts_with("this text") ||
+    res.starts_with("i apologise") ||
+    res.starts_with("i'm sorry") ||
+    res.starts_with("sorry") ||
+    res.starts_with("this is a webpage") ||
+    res.starts_with("watch:") ||
+    res.starts_with("the website")
 }

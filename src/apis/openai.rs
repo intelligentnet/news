@@ -34,8 +34,11 @@ pub struct APIResponse {
 
 // Call Large Language Model (i.e. GPT-4)
 pub async fn call_gpt(messages: Vec<Message>) -> Result<String, Box<dyn std::error::Error + Send>> {
-    //dotenv().ok();
+    call_gpt_model("gpt-3.5-turbo", messages).await
+    //call_gpt_model("gpt-4", messages).await
+}
 
+pub async fn call_gpt_model(model: &str, messages: Vec<Message>) -> Result<String, Box<dyn std::error::Error + Send>> {
     // Extract API Key information
     let api_key: String =
         env::var("OPEN_AI_KEY").expect("OPEN_AI_KEY not found in enviornment variables");
@@ -65,8 +68,7 @@ pub async fn call_gpt(messages: Vec<Message>) -> Result<String, Box<dyn std::err
 
     // Create chat completion
     let chat_completion: ChatCompletion = ChatCompletion {
-        model: "gpt-3.5-turbo".to_string(),
-        //model: "gpt-4".to_string(),
+        model: model.into(),
         messages,
         temperature: 0.2,
     };

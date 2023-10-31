@@ -1,7 +1,7 @@
 use html2text;
 use std::io::BufReader;
 use stringreader::StringReader;
-use crate::apis::openai::{Message, call_gpt};
+use crate::apis::openai::{Message, call_gpt, call_gpt_model};
 use crate::image::render::PAGE_TOTAL;
 
 pub const SUMMARIZE_ERROR: &str = "CANNOT SUMMARIZE";
@@ -50,7 +50,22 @@ pub async fn llm_context(req: &str) -> Result<String, Box<dyn std::error::Error 
 */
 
 pub async fn llm_code(req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
-    llm_news_items_with_context(&mut [], &mut ["Show Rust code without explanation"], req).await
+    let mut messages: Vec<Message> = Vec::new();
+
+    let system: Message = Message {
+            role: "system".to_string(),
+            content: "Show Rust code without explanation".to_string(),
+        };
+
+    let user: Message = Message {
+            role: "user".to_string(),
+            content: req.to_string(),
+        };
+
+    messages.push(system);
+    messages.push(user);
+
+    call_gpt_model("gpt-4", messages).await
 }
 
 pub async fn llm_title(req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {

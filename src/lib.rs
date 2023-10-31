@@ -10,7 +10,7 @@ pub use apis::openai::*;
 pub use apis::call_builder::*;
 pub use apis::{apilayer, newsapi};
 pub use llm::gpt::*;
-pub use image::overlay::*;
+//pub use image::overlay::*;
 pub use image::render::*;
 pub use aps::news::*;
 pub use db::postgres::*;

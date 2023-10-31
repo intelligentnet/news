@@ -1,0 +1,12 @@
+{
+  "builders": [
+  {
+    "name": "News Summary",
+    "description": "Builds content containing News Summaries",
+    "url": "https://intelligent-net.ddns.net/news",
+    "requireAspectRatio": false,
+    "contentType": "image/png",
+    "serverImport": true
+  }
+  ]
+}
