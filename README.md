@@ -6,6 +6,7 @@ For you to do :
 -	Create an OpenAI API account
 -	Open an NewsAPI account
 -	Set up PostgreSQL with an account username and password
+-	Edit the new.sql file and add your account name and run it
 -	Get you Postgres access permissions set up for the host running postgres
 -	Install latest Rust compiler with rustup
 -	Edit the env file and run: . ./env in shell

@@ -48,6 +48,7 @@ async fn index(info: web::Query<std::collections::HashMap<String, String>>) -> i
     }
 }
 
+/*
 #[get("/bench")]
 async fn bench(info: web::Query<std::collections::HashMap<String, u32>>) -> impl Responder {
     let params = info.into_inner();
@@ -58,6 +59,24 @@ async fn bench(info: web::Query<std::collections::HashMap<String, u32>>) -> impl
 
     HttpResponse::Ok().body(format!("{seq} = {secs}"))
 }
+
+#[derive(Deserialize)]
+struct BenchData {
+    seq: u32,
+    secs: u32,
+}
+
+// HttpResponse::BadRequest().body("Oh Bother")
+
+async fn post_bench(form: web::Json<BenchData>) -> impl Responder {
+    let seq = form.seq;
+    let secs = form.secs;
+
+    std::thread::sleep(std::time::Duration::from_secs(secs.into()));
+
+    HttpResponse::Ok().body(format!("{seq} = {secs}"))
+}
+*/
 
 #[get("/gen/{file}")]
 async fn gen(info: web::Path<String>) -> impl Responder {
@@ -143,7 +162,8 @@ async fn main() -> std::io::Result<()> {
             .service(index)
             .route("/submit", web::post().to(process_form))
             .service(gen)
-            .service(bench)
+            //.service(bench)
+            //.route("/post", web::post().to(post_bench))
     })
     .keep_alive(Duration::from_secs(60 * TIMEOUT_PERIOD as u64))
     .bind("0.0.0.0:8080")?

@@ -1,4 +1,6 @@
 use tokio_postgres::{Client, Row};
+use pgvector::Vector;
+use fastembed::{FlagEmbedding, EmbeddingBase};
 use chrono::{DateTime, Utc, TimeZone, Duration};
 use std::error::Error;
 use std::env::var;
@@ -21,10 +23,11 @@ pub struct DbNewsItem<Utc: TimeZone> {
     pub summary: Option<String>,
     pub queried: bool,
     pub dt: DateTime<Utc>,
+    pub embedding: Option<Vec<f32>>,
 }
 
 impl DbNewsItem<Utc> {
-    pub fn new(url: &str, prompt: &str, source: &str, title: &str, dt: DateTime<Utc>) -> Self {
+    pub fn new(url: &str, prompt: &str, source: &str, title: &str, dt: DateTime<Utc>, embedding: Option<Vec<f32>>) -> Self {
         DbNewsItem {
             url: url.into(),
             prompt: prompt.into(),
@@ -33,6 +36,7 @@ impl DbNewsItem<Utc> {
             summary: None,
             queried: false,
             dt,
+            embedding
         }
     }
 }
@@ -48,24 +52,54 @@ pub async fn get_rows(rows: &Vec<Row>) -> Vec<DbNewsItem<Utc>> {
         let summary: Option<String> = summary.map(|s| s.into());
         let queried: bool = row.get(5);
         let dt: DateTime<Utc> = row.get::<usize, DateTime<Utc>>(6);
+        let pgvec: Option<Vector> = row.get(7);
+        let embedding: Option<Vec<f32>> = match pgvec {
+            None => None,
+            Some(pgvec) => Some(pgvec.into()),
+        };
 
-        rs.push(DbNewsItem {url: url.into(), prompt: prompt.into(), source: source.into(), title: title.into(), summary, queried, dt });
+        rs.push(DbNewsItem {url: url.into(), prompt: prompt.into(), source: source.into(), title: title.into(), summary, queried, dt, embedding});
     }
 
     rs
 }
 
+/*
 pub async fn add_news(client: &mut Client, input: &[DbNewsItem<Utc>]) -> Result<(), Box<dyn Error>> {
-    //let embeddings = fetch_embeddings(&input)?;
     for (count, i) in input.iter().enumerate() {
         add_news_item(client, i, count as u32).await?;
     }
     
     Ok(())
 }
+*/
 
 pub async fn add_news_item(client: &mut Client, i: &DbNewsItem<Utc>, count: u32) -> Result<(), Box<dyn Error>> {
-    client.execute("INSERT INTO news_items (url, prompt, source, title, summary, queried, dt, seq) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT ON CONSTRAINT news_pk DO UPDATE SET title = $4, summary = $5, queried = $6, dt = $7", &[&i.url, &i.prompt, &i.source, &i.title, &i.summary, &i.queried, &i.dt, &count]).await?;
+    let embedding = match &i.embedding {
+        None => None,
+        Some(emb) => Some(Vector::from(emb.clone())),
+    };
+
+    client.execute("INSERT INTO news_items (url, prompt, source, title, summary, queried, dt, seq, embedding) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT ON CONSTRAINT news_pk DO UPDATE SET title = $4, summary = $5, queried = $6, dt = $7", &[&i.url, &i.prompt, &i.source, &i.title, &i.summary, &i.queried, &i.dt, &count, &embedding]).await?;
+    
+    Ok(())
+}
+
+pub async fn get_embed_model() -> Result<FlagEmbedding, Box<dyn Error>> {
+    Ok(FlagEmbedding::try_new(Default::default())?)
+}
+
+pub async fn add_prompt_embed(client: &mut Client, model: &Option<FlagEmbedding>, prompt: &str) -> Result<(), Box<dyn Error>> {
+    let embedding = match model {
+        None => None,
+        Some(model) => {
+            let embedding = model.query_embed(prompt.to_string())?;
+
+            Some(Vector::from(embedding))
+        },
+    };
+
+    client.execute("INSERT INTO prompt_embed (prompt, embedding) VALUES ($1, $2) ON CONFLICT DO NOTHING", &[&prompt, &embedding]).await?;
     
     Ok(())
 }
@@ -100,7 +134,7 @@ pub async fn clear_news(client: &mut Client, prompt: &str, hours: u32) -> Result
 
 pub async fn get_saved_news(client: &mut Client, prompt: &str, purge: u32) -> Result<Vec<DbNewsItem<Utc>>, Box<dyn Error>> {
     let dt_purge: DateTime<Utc> = Utc::now() - Duration::hours(purge.into());
-    let rows: Vec<Row> = client.query("SELECT url, prompt, source, title, summary, queried, dt FROM news_items WHERE prompt = $1 AND (NOT queried OR summary IS NULL) AND dt > $2 ORDER BY seq, dt", &[&prompt, &dt_purge]).await?;
+    let rows: Vec<Row> = client.query("SELECT url, prompt, source, title, summary, queried, dt, embedding FROM news_items WHERE prompt = $1 AND (NOT queried OR summary IS NULL) AND dt > $2 ORDER BY seq, dt", &[&prompt, &dt_purge]).await?;
 
     Ok(get_rows(&rows).await)
 }
@@ -134,7 +168,7 @@ mod tests {
 
         let mut input = Vec::new();
         for i in 0 .. 1000 {
-            input.push(DbNewsItem{url: strs[i].0.clone(), prompt: strs[i].1.clone(), source: "bbc".into(), title: strs[i].2.clone(), summary: if i % 2 == 0 { Some("summary".into()) } else { None }, queried: false, dt: Utc::now()});
+            input.push(DbNewsItem{url: strs[i].0.clone(), prompt: strs[i].1.clone(), source: "bbc".into(), title: strs[i].2.clone(), summary: if i % 2 == 0 { Some("summary".into()) } else { None }, queried: false, dt: Utc::now(), embedding: vec![1.0, 2.0, 3.0]});
         }
 
 println!(">>>>");
@@ -164,7 +198,7 @@ println!("<<<<");
 
         //println!("{:?}", rs);
 
-        purge_news(&mut client, 1).await?;
+        //purge_news(&mut client, 1).await?;
 
         Ok(())
     }

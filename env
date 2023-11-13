@@ -4,3 +4,5 @@ export PG_HOST=<Your Host>
 export PG_DB=<Your DB>
 export PG_USER=<Your User>
 export PG_PASS=<Your Password>
+
+export GPT_VERSION=gpt-3.5-turbo-1106

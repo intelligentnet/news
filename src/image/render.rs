@@ -1,5 +1,5 @@
 use ril::prelude::*;
-use crate::llm::gpt::{truncate};
+use crate::llm::gpt::{truncate, truncate_sentence};
 
 pub const PAGE_TOTAL: u32 = 5;
 
@@ -65,7 +65,7 @@ pub fn mk_image(prompt: &str, title_text: &Vec<(String, String, String)>, len: u
                 image_entry(&mut image, &bold, red, 0, t1, truncate(&it.0, 16), centre);
 
                 image_entry(&mut image, &bold, Rgb::white(), 200, t1, &it.1, centre);
-                image_entry(&mut image, &font, Rgb::white(), 0, t2, &it.2, centre);
+                image_entry(&mut image, &font, Rgb::white(), 0, t2, truncate_sentence(&it.2, 700), centre);
             }
 
             let out = mk_filename(prompt);
