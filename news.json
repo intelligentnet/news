@@ -6,6 +6,7 @@
     "url": "https://intelligent-net.ddns.net/news",
     "requireAspectRatio": false,
     "contentType": "image/png",
+    "defaultRefreshPeriod": 10800,
     "serverImport": true
   }
   ]

@@ -1,0 +1,13 @@
+{
+  "builders": [
+  {
+    "name": "New Image Maker",
+    "description": "Builds content containing Images From News",
+    "url": "https://intelligent-net.ddns.net/picture",
+    "requireAspectRatio": false,
+    "contentType": "image/png",
+    "serverImport": true,
+    "defaultRefreshPeriod": 10800
+  }
+  ]
+}

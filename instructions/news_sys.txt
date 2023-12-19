@@ -1,0 +1,7 @@
+Message content is supplied as a json object with many attributes and values, translate all values into English.
+Summarize each value in less than {word_len} words into a new value.
+Explain each value as simply as possible.
+No value can be longer than {word_len} words.
+Output attribute names identical to the input attribute names and summarized values.
+Always return a json object with exactly the same attribute names as given but with values summarized and translated into English.
+Always return numbered title and body fields.

@@ -23,19 +23,22 @@ pub struct DbNewsItem<Utc: TimeZone> {
     pub summary: Option<String>,
     pub queried: bool,
     pub dt: DateTime<Utc>,
+    pub sentiment: f32,
     pub embedding: Option<Vec<f32>>,
 }
 
 impl DbNewsItem<Utc> {
-    pub fn new(url: &str, prompt: &str, source: &str, title: &str, dt: DateTime<Utc>, embedding: Option<Vec<f32>>) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(url: &str, prompt: &str, source: &str, title: &str, dt: DateTime<Utc>, summary: &Option<String>, queried: bool, sentiment: f32, embedding: Option<Vec<f32>>) -> Self {
         DbNewsItem {
             url: url.into(),
             prompt: prompt.into(),
             source: source.into(),
             title: title.into(),
-            summary: None,
-            queried: false,
+            summary: summary.clone(),
+            queried,
             dt,
+            sentiment,
             embedding
         }
     }
@@ -52,19 +55,16 @@ pub async fn get_rows(rows: &Vec<Row>) -> Vec<DbNewsItem<Utc>> {
         let summary: Option<String> = summary.map(|s| s.into());
         let queried: bool = row.get(5);
         let dt: DateTime<Utc> = row.get::<usize, DateTime<Utc>>(6);
-        let pgvec: Option<Vector> = row.get(7);
-        let embedding: Option<Vec<f32>> = match pgvec {
-            None => None,
-            Some(pgvec) => Some(pgvec.into()),
-        };
+        let sentiment: f32 = row.get(7);
+        let pgvec: Option<Vector> = row.get(8);
+        let embedding = pgvec.map(|pgvec| pgvec.into());
 
-        rs.push(DbNewsItem {url: url.into(), prompt: prompt.into(), source: source.into(), title: title.into(), summary, queried, dt, embedding});
+        rs.push(DbNewsItem {url: url.into(), prompt: prompt.into(), source: source.into(), title: title.into(), summary, queried, dt, sentiment, embedding});
     }
 
     rs
 }
 
-/*
 pub async fn add_news(client: &mut Client, input: &[DbNewsItem<Utc>]) -> Result<(), Box<dyn Error>> {
     for (count, i) in input.iter().enumerate() {
         add_news_item(client, i, count as u32).await?;
@@ -72,15 +72,11 @@ pub async fn add_news(client: &mut Client, input: &[DbNewsItem<Utc>]) -> Result<
     
     Ok(())
 }
-*/
 
 pub async fn add_news_item(client: &mut Client, i: &DbNewsItem<Utc>, count: u32) -> Result<(), Box<dyn Error>> {
-    let embedding = match &i.embedding {
-        None => None,
-        Some(emb) => Some(Vector::from(emb.clone())),
-    };
+    let embedding = i.embedding.as_ref().map(|e| Vector::from(e.clone()));
 
-    client.execute("INSERT INTO news_items (url, prompt, source, title, summary, queried, dt, seq, embedding) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT ON CONSTRAINT news_pk DO UPDATE SET title = $4, summary = $5, queried = $6, dt = $7", &[&i.url, &i.prompt, &i.source, &i.title, &i.summary, &i.queried, &i.dt, &count, &embedding]).await?;
+    client.execute("INSERT INTO news_items (url, prompt, source, title, summary, queried, dt, seq, sentiment, embedding) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT ON CONSTRAINT news_pk DO UPDATE SET title = $4, summary = $5, queried = $6, dt = $7, seq = $8, sentiment = $9", &[&i.url, &i.prompt, &i.source, &i.title, &i.summary, &i.queried, &i.dt, &count, &i.sentiment, &embedding]).await?;
     
     Ok(())
 }
@@ -89,20 +85,26 @@ pub async fn get_embed_model() -> Result<FlagEmbedding, Box<dyn Error>> {
     Ok(FlagEmbedding::try_new(Default::default())?)
 }
 
-pub async fn add_prompt_embed(client: &mut Client, model: &Option<FlagEmbedding>, prompt: &str) -> Result<(), Box<dyn Error>> {
+pub async fn add_prompt_embed(client: &mut Client, model: &Option<FlagEmbedding>, prompt: &str, format: &str) -> Result<(), Box<dyn Error>> {
     let embedding = match model {
         None => None,
         Some(model) => {
-            let embedding = model.query_embed(prompt.to_string())?;
-
+            let embedding = model.query_embed(prompt)?;
             Some(Vector::from(embedding))
         },
     };
+    client.execute("INSERT INTO prompt_embed (prompt, format, embedding) VALUES ($1, $2, $3) ON CONFLICT ON CONSTRAINT prompt_embed_pkey DO UPDATE set format = $2", &[&prompt, &format, &embedding]).await?;
 
-    client.execute("INSERT INTO prompt_embed (prompt, embedding) VALUES ($1, $2) ON CONFLICT DO NOTHING", &[&prompt, &embedding]).await?;
-    
     Ok(())
 }
+
+/*
+pub async fn get_prompt_embed(client: &mut Client, prompt: &str) -> Result<String, Box<dyn Error>> {
+    let rows: Vec<Row> = client.query("SELECT format FROM prompt_embed WHERE prompt = $1", &[&prompt]).await?;
+    
+    Ok(if rows.is_empty() { "headlines".into() } else { rows[0].get(0) })
+}
+*/
 
 pub async fn upd_news_item(client: &mut Client, prompt: &str, url: &str, title: String, summary: Option<&str>) -> Result<(), Box<dyn Error>> {
     //let dt: DateTime<Utc> = Utc::now();
@@ -124,9 +126,17 @@ pub async fn del_news_item(client: &mut Client, prompt: &str, url: &str) -> Resu
     Ok(())
 }
 
+pub async fn del_news_title(client: &mut Client, prompt: &str, title: &str) -> Result<(), Box<dyn Error>> {
+    client.execute("DELETE FROM news_items WHERE title = $2 AND prompt = $1", &[&prompt, &title]).await?;
+    
+    Ok(())
+}
+
 pub async fn clear_news(client: &mut Client, prompt: &str, hours: u32) -> Result<(), Box<dyn Error>> {
     let dt: DateTime<Utc> = Utc::now() - Duration::hours(hours.into());
 
+    //client.execute("DELETE FROM prompt_embed WHERE prompt = $1", &[&prompt]).await?;
+    
     client.execute("DELETE FROM news_items WHERE prompt = $1 AND (summary IS NOT NULL OR dt < $2)", &[&prompt, &dt]).await?;
     
     Ok(())
@@ -134,7 +144,7 @@ pub async fn clear_news(client: &mut Client, prompt: &str, hours: u32) -> Result
 
 pub async fn get_saved_news(client: &mut Client, prompt: &str, purge: u32) -> Result<Vec<DbNewsItem<Utc>>, Box<dyn Error>> {
     let dt_purge: DateTime<Utc> = Utc::now() - Duration::hours(purge.into());
-    let rows: Vec<Row> = client.query("SELECT url, prompt, source, title, summary, queried, dt, embedding FROM news_items WHERE prompt = $1 AND (NOT queried OR summary IS NULL) AND dt > $2 ORDER BY seq, dt", &[&prompt, &dt_purge]).await?;
+    let rows: Vec<Row> = client.query("SELECT url, prompt, source, title, summary, queried, dt, sentiment, embedding FROM news_items WHERE prompt = $1 AND (((NOT queried OR summary IS NULL) AND dt > $2) OR summary is NOT NULL) ORDER BY summary, seq, dt", &[&prompt, &dt_purge]).await?;
 
     Ok(get_rows(&rows).await)
 }
@@ -171,9 +181,9 @@ mod tests {
             input.push(DbNewsItem{url: strs[i].0.clone(), prompt: strs[i].1.clone(), source: "bbc".into(), title: strs[i].2.clone(), summary: if i % 2 == 0 { Some("summary".into()) } else { None }, queried: false, dt: Utc::now(), embedding: vec![1.0, 2.0, 3.0]});
         }
 
-println!(">>>>");
+//println!(">>>>");
         add_news(&mut client, &input).await?;
-println!("<<<<");
+//println!("<<<<");
 
         let url = "http2";
         let rows: Vec<Row> = client.query("SELECT url, prompt, source, title, summary, queried, dt FROM news_items WHERE url = $1", &[&url]).await?;

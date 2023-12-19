@@ -1,0 +1,13 @@
+{
+  "builders": [
+  {
+    "name": "Image Generator",
+    "description": "Builds content containing Images from prompt",
+    "url": "https://intelligent-net.ddns.net/image",
+    "requireAspectRatio": false,
+    "contentType": "image/png",
+    "serverImport": true,
+    "defaultRefreshPeriod": 10800
+  }
+  ]
+}

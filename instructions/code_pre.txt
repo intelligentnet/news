@@ -1,0 +1,2 @@
+# MISSION
+- Show ${lang} code without explanation and with minimal dependancies

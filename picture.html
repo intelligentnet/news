@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Generate News Related Picture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            margin-bottom: 5px;
+            color: #555;
+        }
+        input[type="text"], select {
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            padding: 10px 20px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        input[type="submit"]:hover {
+            background-color: #4cae4c;
+        }
+        .spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .show {
+            display: block;
+        }
+        .fade-out {
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .message {
+            color: #333;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Generate News Related Picture</h1>
+        <form method="post" id="picture" action="submit_pic" onsubmit="showSpinner(); return true;">
+            <label for="prompt">News Picture Prompt:</label>
+            <input type="text" id="prompt" name="prompt" size="60" required>
+            
+            <input type="submit" value="Submit">
+            <input type="hidden" id="callback" name="callback" value="${callback}">
+	    <input type="hidden" id="domain" name="domain" value="https://intelligent-net.ddns.net">
+            <input type="hidden" id="system" name="system" value="">
+
+        </form>
+        <h3 class="message">This will take some time to process after submitting...</h3>
+        <h2 class="message">${message}</h2>
+        <img src="spinner.gif" id="spinner" class="spinner">
+    </div>
+
+    <script>
+        function showSpinner() {
+            document.getElementById('spinner').classList.add('show');
+        }
+    </script>
+</body>
+</html>

@@ -1,9 +1,12 @@
+//use std::path::Path;
 use ril::prelude::*;
 use crate::llm::gpt::{truncate, truncate_sentence};
+use image::{imageops::overlay, GenericImageView, Rgba};
+use imageproc::drawing::draw_text_mut;
 
-pub const PAGE_TOTAL: u32 = 5;
+pub const PAGE_TOTAL: usize = 5;
 
-fn image_entry(image: &mut Image<ril::Rgb>, font : &Font, colour: ril::Rgb, w: u32, h: u32, text: &str, centre: bool) {
+fn image_entry(image: &mut Image<ril::Rgb>, font : &Font, colour: ril::Rgb, w: usize, h: usize, text: &str, centre: bool) {
     let layout = TextLayout::new();
     // Shorthand for centering horizontally and vertically
     let layout = if centre { layout.centered() } else { layout };
@@ -11,22 +14,22 @@ fn image_entry(image: &mut Image<ril::Rgb>, font : &Font, colour: ril::Rgb, w: u
         // This is the width to wrap text at.
         .with_width(image.width() - 50)
         // Position the anchor at the center of the image if required
-        .with_position(if centre { image.width() / 2 } else { 25 + w }, h)
+        .with_position(if centre { image.width() / 2 } else { 25 + w as u32}, h as u32)
         .with_segment(&TextSegment::new(font, text, colour));
 
     image.draw(&layout);
 }
 
 //const WIDTH: u32 = 1920;
-const HEIGHT: u32 = 1080;
-const OFFSET: u32 = 35;
+const HEIGHT: usize = 1080;
+const OFFSET: usize = 35;
 
-pub fn mk_filename(prompt: &str) -> String {
-    format!("gen/{}.png", prompt.replace(' ', "_"))
+pub fn mk_filename(file: &str) -> String {
+    format!("gen/{}.png", truncate(file, 100).replace(' ', "_").to_lowercase())
 }
 
-pub fn mk_image(prompt: &str, title_text: &Vec<(String, String, String)>, len: u32, centre: bool) -> Result<String, String> {
-    let ttl = title_text.len() as u32;
+pub fn mk_image(prompt: &str, title_text: &Vec<(String, String, String)>, len: usize, centre: bool) -> Result<String, String> {
+    let ttl = title_text.len();
     if len == 0 || ttl == 0 {
         return Err(format!("No news available for query: {prompt}"));
     }
@@ -61,7 +64,7 @@ pub fn mk_image(prompt: &str, title_text: &Vec<(String, String, String)>, len: u
                 let t1 = hp + sub;
                 let t2 = hp + sub * 4;
 
-                let it = &title_text[(i + item) as usize];
+                let it = &title_text[i + item];
                 image_entry(&mut image, &bold, red, 0, t1, truncate(&it.0, 16), centre);
 
                 image_entry(&mut image, &bold, Rgb::white(), 200, t1, &it.1, centre);
@@ -80,4 +83,54 @@ pub fn mk_image(prompt: &str, title_text: &Vec<(String, String, String)>, len: u
         };
 
     Ok(out)
+}
+
+pub fn use_image(prompt: &str, title_text: &str) -> Result<String, String> {
+    let mut img = image::open("big_wood.png").unwrap();
+
+    // Load a font.
+    let font = Vec::from(include_bytes!("../../Roboto-Regular.ttf") as &[u8]);
+    let font = rusttype::Font::try_from_vec(font).unwrap();
+
+    let font_size = 40.0;
+    let scale = rusttype::Scale {
+        x: font_size,
+        y: font_size,
+    };
+
+    // draw text
+    if prompt != title_text {
+        draw_text_mut(
+            &mut img,
+            Rgba([255u8, 0u8, 0u8, 255u8]),
+            5, // x
+            0, // y
+            scale,
+            &font,
+            prompt, // Must be of type &str
+        );
+    }
+    draw_text_mut(
+        &mut img,
+        Rgba([255u8, 255u8, 255u8, 255u8]),
+        if prompt != title_text { 300 } else { 10 }, // x
+        0, // y
+        scale,
+        &font,
+        truncate_sentence(title_text,
+            if prompt != title_text { 770 } else { 1060 }) // Must be of type &str
+    );
+
+    // overlay another image on top of the image
+    let file = &mk_filename(prompt);
+    let tile = image::open(file).unwrap();
+    let (w, h) = img.dimensions();
+    let (w2, h2) = tile.dimensions();
+    overlay(&mut img, &tile, (w / 2 - w2 / 2).into(), ((h / 2 - h2 / 2) / 4 * 7).into());
+
+    // re-output a new image
+    img.save(file).unwrap();
+
+    // make sure correct mount point is used
+    Ok(file.replace("gen/", "pic/").into())
 }
