@@ -13,11 +13,15 @@ For you to do :
 -	Edit prompt.html file for your URL and desired appearance
 -	Create a 'gen' directory for receiving generated files
 
+Use Targetr where this service is available as an extension.
+
+OR 
+
 Run the server with :
 
 	cargo run --release
 
-The Web site is available at https://my_URL/news
+The Web site then is available at https://my_URL/ind
 
 Enjoy.
 
@@ -32,5 +36,6 @@ TODO
 - Add additional News Suppliers
 - Add Additional LLMs to use. Currently GPT-3.5 or can use GPT-4 (expensive)
 - Refine prompts to LLMs further and make this user accessible
+- Review and change instructions for each mode
 
 Contact http://TargetR.net for a full digital signage solution!
