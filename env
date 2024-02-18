@@ -1,0 +1,38 @@
+export OPEN_AI_KEY=<Your Key>
+export NEWSAPI_KEY=<Your Key>
+export PG_HOST=<Your Host>
+export PG_DB=<Your DB>
+export PG_USER=<Your User>
+export PG_PASS=<Your Password>
+
+export GPT_VERSION=gpt-3.5-turbo-1106
+export GPT_HIGH_VERSION=gpt-4-0125-preview
+export GPT_IMAGE_VERSION=dall-e-3
+export GPT_EMBEDDING_VERSION=text-embedding-3-small
+
+export GPT_CHAT_URL=https://api.openai.com/v1/chat/completions
+export GPT_IMAGE_URL=https://api.openai.com/v1/images/generations
+export GPT_EMBEDDING_URL=https://api.openai.com/v1/embeddings
+
+export CONTEXT_SIZE=16000
+
+export EMAIL_HOST=?
+export EMAIL_USER=?
+export EMAIL_PASS=?
+
+export MISTRAL_API_KEY=?
+export MISTRAL_VERSION=mistral-medium
+export MISTRAL_HIGH_VERSION=mistral-medium
+
+export BARD_LOCATION=us-central1
+export BARD_APPLICATION=?
+export BARD_VERSION=gemini-pro
+export BARD_HIGH_VERSION=gemini-ultra
+export BARD_URL='https://${BARD_LOCATION}-aiplatform.googleapis.com/v1/projects/${BARD_APPLICATION}/locations/${BARD_LOCATION}/publishers/google/models/${BARD_VERSION}:streamGenerateContent'
+export PROJECT='My Project Description'
+
+# openai, mistral, bard (and soon gemini)
+export LLM_TO_USE=openai
+
+# Set this to use ports 80 and 443 (have your key files installed)
+#export LIVE=true
