@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML Creator</title>
+    <title>Code Creator</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -72,13 +72,27 @@
 </head>
 <body>
     <div class="container">
-        <h1>HTML Generator</h1>
-        <form method="post" id="html" action="html" onsubmit="document.getElementById('spinner').classList.add('show'); return true;">
-            <label for="prompt">News Prompt:</label>
+        <h1>Programming Code Generator</h1>
+        <form method="post" id="code" action="code" onsubmit="document.getElementById('spinner').classList.add('show'); return true;">
+            <label for="prompt">Single word prompt (e.g. name of function):</label>
             <input type="text" id="prompt" name="prompt" required>
 
-            <label for="system">System Area for context and instructions:</label>
-            <textarea id="system" name="system" rows="10"></textarea>
+	    <label for="domain">Coding Language:</label>
+	    <select name="domain" id="domain">
+                <option value="Rust">Rust</option>
+                <option value="Java">Java</option>
+                <option value="python">python</option>
+                <option value="HTML">HTML</option>
+            </select>
+	    <i>Tested with Rust, Java, Python and HTML. Other Languages should work too.</i>
+
+	    <!--
+            <input type="text" id="domain" name="domain" placeholder="Rust, Java, Python or HTML" required>
+	    -->
+
+            <label for="system">System Area for additional context and instructions:</label>
+            <textarea id="system" name="system" columns="80" rows="10"></textarea>
+	    <i>Iterative refinement is recommended. For example adding the word 'efficient' may make the code less readable but faster. Mentioning specific libraries and algorithms is recommended too.</i>
 
             <input type="submit" value="Submit">
         </form>

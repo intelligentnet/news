@@ -28,7 +28,7 @@ pub fn mk_filename(file: &str) -> String {
     format!("gen/{}.png", truncate(file, 100).replace(' ', "_").to_lowercase())
 }
 
-pub fn mk_image(prompt: &str, title_text: &Vec<(String, String, String)>, len: usize, centre: bool) -> Result<String, String> {
+pub fn mk_image(prompt: &str, title_text: &[(String, String, String)], len: usize, centre: bool) -> Result<String, String> {
     let ttl = title_text.len();
     if len == 0 || ttl == 0 {
         return Err(format!("No news available for query: {prompt}"));
@@ -132,5 +132,5 @@ pub fn use_image(prompt: &str, title_text: &str) -> Result<String, String> {
     img.save(file).unwrap();
 
     // make sure correct mount point is used
-    Ok(file.replace("gen/", "pic/").into())
+    Ok(file.replace("gen/", "pic/"))
 }

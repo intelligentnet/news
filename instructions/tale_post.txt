@@ -1,10 +1,10 @@
-# CHAPTERS
-Write 10 chapters each with a Title and Summary to breakdown the story into parts that can later be expanded.
-# LAYOUT
-The title of the document should be put in a hidden field called title.
-Generate a Form that posts to /taledetail.
-Each individual Title and Summary should be put in it's own textarea chapter.
-Each chapter should have rows=4 and cols=150 and have an id and name called chapter_NN where NN is the chapter number.
-The chapters must be laid out in a table.
-Create a submit button.
-Return only HTML
+# STORY
+Tell a story which has a Title and ${chapters} chapters each with a Number, Name and Summary field.
+# FORMAT
+The title is a text field with name and id of title and the value is generated.
+The chapters are laid out in a table in the form.
+Each Name text field has id and name parameters called name_NN and a generated value.
+Each Summary textarea has rows=4 and cols=150 and has id and name parameters called summary_NN and a generated value.
+Humanize all of the text using simple British English.
+Add a submit button and submit to /taledetail.
+Return only HTML without any comments.

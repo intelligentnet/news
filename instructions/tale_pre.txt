@@ -1,1 +1,1 @@
-FORMAT: Format the following story as HTML
+FORMAT: Format the following story as HTML.

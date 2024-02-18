@@ -1,15 +1,15 @@
 [package]
 name = "news"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 #dotenv = "0.15.0"
-reqwest = { version = "0.11", features = ["json", "gzip"] }
-serde = "1"
-serde_json = "1"
+reqwest = { version = "0.11", features = ["json", "gzip", "blocking"] }
+serde = "^1.0.124"
+serde_json = "^1.0.64"
 serde_derive = "1"
 #serde-xml-rs = "0.6"
 tokio = { version = "1", features = ["full"] }
@@ -20,31 +20,42 @@ imageproc = "0.23.0"
 #rusttype = "0.9.3"
 ril = { version = "0", features = ["png"] }
 chrono = { version = "0.4", default-features = false }
-html2text = "0.6.0"
+html2text = "0.12"
 stringreader = "0.1"
 #crc32fast = "1.3.2"
 regex = "1.9.6"
 actix-web = { version="4", features = ["openssl"] }
 actix-files = "0.6.2"
 actix-rt = "2.9.0"
+actix-identity = "0.7.0"
 openssl = "0.10"
-env_logger = "0.10"
+env_logger = "0.11"
+log = "0.4"
 urlencoding = "2.1.3"
 #actix-web-middleware-redirect-https = "3.0.1"
-#tinytemplate = "1.1"
 #postgres = {version = "0.19", features = ["with-chrono-0_4"]}
 pgvector = { version = "0.3", features = ["postgres"] }
 tokio-postgres = {version = "0.7", features = ["with-chrono-0_4"]}
 whichlang = "0.1.0"
 itertools = "0.12.0"
 futures = "0.3.29"
-fastembed = "1.9.0"
+fastembed = "2"
 anyhow = "1.0.75"
 #shannon-entropy = "1.0.0"
 is-html = "0.1.3"
 #rand = "0.8.5"
 rusttype = "0.9.3"
-strfmt = "0.2.4"
+#actix-session = { version="0.9.0", features=["redis-rs-session"]}
+actix-session = { version="0.9.0", features=["cookie-session"]}
+tempfile = "3.10.0"
+filepath = "0.1.2"
+#lettre = { version="0.11.4", features=["smtp-transport", "tokio1", "tokio1-native-tls", "builder"]}
+lettre = "0.11.4"
+base64 = "0.21.7"
+#actix-session = "0.9.0"
+#actix-web-httpauth = "0.8.1"
+#redis_rs = "0.9.0"
+#strfmt = "0.2.4"
 #magnet_schema = "0.8.0"
 #magnet_derive = "0.8.0"
 #bson = "2.7.0"
@@ -55,6 +66,7 @@ strfmt = "0.2.4"
 
 [dev-dependencies]
 #mockall = "0.11"
+htmlescape = "^0.3"
 
 [profile.release]
 strip = true

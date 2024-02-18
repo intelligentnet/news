@@ -1,13 +1,11 @@
-# CHAPTERS
+# INPUT
+A json object with a story title and many chapters names and summarized chapter contents is supplied. 
+# CHAPTERS CONTENTS
 Take each chapter summary.
 Develop the characters from the summary.
 Develop the themes in the summary.
-# INPUT
-A json object with many chapters and summarized chapter contents is supplied. 
-For each chapter summary use it to tell a longer story of about 1000 words.
+Create a longer chapter story humanized text of over 1000 words to replace the summary.
 # OUTPUT 
-The title of the document is 'Alfred's Visit to the Danelaw'.
-Replace the original summary with the new longer story.
-Always return an HTML object with exactly the same chapter names as before.
-Format the HTML with chapter names and contents in a table
-Return only HTML
+The title is an HTML heading.
+Followed by an HTML table with exactly the same chapter names as before but replace the chapter summary with the longer chapter story text.
+Return everything as HTML.

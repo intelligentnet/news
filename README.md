@@ -11,7 +11,7 @@ For you to do :
 -	Install latest Rust compiler with rustup
 -	Edit the env file and run: . ./env in shell
 -	Edit prompt.html file for your URL and desired appearance
--	Create a 'gen' directory for receiving generated files
+-	Create a 'gen' directory for receiving generated files, symlink as 'pic'
 
 Use Targetr where this service is available as an extension.
 
@@ -34,7 +34,6 @@ TODO
 - For log running servers Postgres is probably not necessary, add in memory
   persistence
 - Add additional News Suppliers
-- Add Additional LLMs to use. Currently GPT-3.5 or can use GPT-4 (expensive)
 - Refine prompts to LLMs further and make this user accessible
 - Review and change instructions for each mode
 

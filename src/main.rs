@@ -2,10 +2,14 @@ use news::aps::news::{news, tale, detail_tale, language, image};
 use serde_derive::Deserialize;
 use actix_web::{get, middleware, web, Responder, HttpServer, HttpResponse, App};
 use actix_files::NamedFile;
+//use actix_identity::Identity;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::time::Duration;
-use env_logger::Env;
 use news::aps::news::TIMEOUT_PERIOD;
+use news::template::Template;
+use std::collections::BTreeMap;
+use env_logger::Env;
+use log::{warn, info};
 
 #[derive(Deserialize, Debug)]
 struct FormData {
@@ -13,6 +17,7 @@ struct FormData {
     callback: Option<String>,
     domain: Option<String>,
     system: String,
+    chapters: Option<String>,
 }
 
 #[get("/news.json")]
@@ -39,7 +44,7 @@ async fn spinner() -> impl Responder {
 async fn news_index(info: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
     match std::fs::read_to_string("news.html") {
         Ok(form) => {
-            HttpResponse::Ok().body(index_common(form, info).await)
+            HttpResponse::Ok().body(index_common(form, info))
         },
         Err(_) => 
             HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
@@ -50,20 +55,15 @@ async fn news_index(info: web::Query<std::collections::HashMap<String, String>>)
 async fn picture_index(info: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
     match std::fs::read_to_string("picture.html") {
         Ok(form) => {
-            HttpResponse::Ok().body(index_common(form, info).await)
+            HttpResponse::Ok().body(index_common(form, info))
         },
         Err(_) => 
             HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
     }
 }
 
-async fn index_common(form: String, info: web::Query<std::collections::HashMap<String, String>>) -> String {
-    let params = info.into_inner();
-    let cb = params.get("callback").map_or("", String::as_str);
-    let ms = params.get("message").map_or("", String::as_str);
- 
-    // Simple templating O(N*n)
-    form.replace("${callback}", cb).replace("${message}", ms)
+fn index_common(form: String, info: web::Query<std::collections::HashMap<String, String>>) -> String {
+    Template::new(&form).render_strings(&info.into_inner())
 }
 
 #[get("/ind")]
@@ -82,14 +82,7 @@ async fn image_index(info: web::Query<std::collections::HashMap<String, String>>
     let form = std::fs::read_to_string("image.html");
     match form {
         Ok(form) => {
-            let params = info.into_inner();
-            let cb = params.get("callback").map_or("", String::as_str);
-            let ms = params.get("message").map_or("", String::as_str);
-            // Simple templating O(N*n)
-            let form = form.replace("${callback}", cb)
-                .replace("${message}", ms);
-
-            HttpResponse::Ok().body(form)
+            HttpResponse::Ok().body(index_common(form, info))
         },
         Err(_) => 
             HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
@@ -101,80 +94,19 @@ async fn tale_index(info: web::Query<std::collections::HashMap<String, String>>)
     let form = std::fs::read_to_string("tale.html");
     match form {
         Ok(form) => {
-            let params = info.into_inner();
-            let ms = params.get("message").map_or("", String::as_str);
-            // Simple templating O(N*n)
-            let form = form.replace("${message}", ms);
-
-            HttpResponse::Ok().body(form)
+            HttpResponse::Ok().body(index_common(form, info))
         },
         Err(_) => 
             HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
     }
 }
 
-#[get("/rust")]
-async fn rust_index(info: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
-    let form = std::fs::read_to_string("rust.html");
+#[get("/code")]
+async fn code_index(info: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
+    let form = std::fs::read_to_string("code.html");
     match form {
         Ok(form) => {
-            let params = info.into_inner();
-            let ms = params.get("message").map_or("", String::as_str);
-            // Simple templating O(N*n)
-            let form = form.replace("${message}", ms);
-
-            HttpResponse::Ok().body(form)
-        },
-        Err(_) => 
-            HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
-    }
-}
-
-#[get("/python")]
-async fn python_index(info: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
-    let form = std::fs::read_to_string("python.html");
-    match form {
-        Ok(form) => {
-            let params = info.into_inner();
-            let ms = params.get("message").map_or("", String::as_str);
-            // Simple templating O(N*n)
-            let form = form.replace("${message}", ms);
-
-            HttpResponse::Ok().body(form)
-        },
-        Err(_) => 
-            HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
-    }
-}
-
-#[get("/java")]
-async fn java_index(info: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
-    let form = std::fs::read_to_string("java.html");
-    match form {
-        Ok(form) => {
-            let params = info.into_inner();
-            let ms = params.get("message").map_or("", String::as_str);
-            // Simple templating O(N*n)
-            let form = form.replace("${message}", ms);
-
-            HttpResponse::Ok().body(form)
-        },
-        Err(_) => 
-            HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
-    }
-}
-
-#[get("/html")]
-async fn html_index(info: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
-    let form = std::fs::read_to_string("html.html");
-    match form {
-        Ok(form) => {
-            let params = info.into_inner();
-            let ms = params.get("message").map_or("", String::as_str);
-            // Simple templating O(N*n)
-            let form = form.replace("${message}", ms);
-
-            HttpResponse::Ok().body(form)
+            HttpResponse::Ok().body(index_common(form, info))
         },
         Err(_) => 
             HttpResponse::build(actix_web::http::StatusCode::NOT_FOUND).into()
@@ -282,29 +214,35 @@ async fn process_news_pic(fmt: &str, form: web::Form<FormData>) -> String {
 async fn process_news(prompt: &str, callback: &Option<String>, domain: &Option<String>, fmt: &str, initial: bool) -> String {
     let start = std::time::Instant::now();
     // Process the form data here
-    match news(&prompt.to_lowercase(), fmt, initial).await {
-        Ok(file) => {
-            println!("{} took {:?}", prompt, start.elapsed());
-            match &callback {
-                Some(cb) if !cb.is_empty() => {
-                    match &domain {
-                        Some(dom) => {
-                            let file_url = format!("{dom}/{}", file); 
+    let file =
+        match news(&prompt.to_lowercase(), fmt, initial).await {
+            Ok(file) => {
+                info!("{} took {:?}", prompt, start.elapsed());
+                match &callback {
+                    Some(cb) if !cb.is_empty() => {
+                        match &domain {
+                            Some(dom) => {
+                                let file_url = format!("{dom}/{}", file); 
 
-                            format!("{cb}{}url={}",
-                                if cb.contains('?') { "&" } else { "?" },
-                                urlencoding::encode(&file_url))
-                        },
-                        None => file,
-                    }
-                },
-                Some(_) | None => file,
+                                format!("{cb}{}url={}",
+                                    if cb.contains('?') { "&" } else { "?" },
+                                    urlencoding::encode(&file_url))
+                            },
+                            None => file,
+                        }
+                    },
+                    Some(_) | None => file,
+                }
+            },
+            Err(_) => {
+                "Not Found".into()
             }
-        },
-        Err(e) => {
-            eprintln!("{e}");
-            "Not Found".into()
-        }
+        };
+
+    if std::path::Path::new(&file).exists() {
+        file
+    } else {
+        "Not Found".into()
     }
 }
 
@@ -318,7 +256,7 @@ async fn process_image(form: web::Form<FormData>) -> impl Responder {
         match image(&prompt.to_lowercase(), &form.system).await {
             Ok(file) => file,
             Err(e) => {
-                eprintln!("{e}");
+                warn!("{e}");
                 "Not Found".into()
             }
         };
@@ -332,11 +270,16 @@ async fn process_tale(form: web::Form<FormData>) -> impl Responder {
     } else {
         &form.prompt
     };
+    let chapters: usize = match &form.chapters {
+        //Some(n) => match n.parse::<usize>() { Ok(n) => n, Err(_) => 5 },
+        Some(n) => n.parse::<usize>().unwrap_or(5),
+        None => 5
+    };
     let call =
-        match tale(&prompt.to_lowercase(), &form.system).await {
+        match tale(&prompt.to_lowercase(), &form.system, chapters).await {
             Ok(file) => file,
             Err(e) => {
-                eprintln!("{e}");
+                warn!("{e}");
                 "Not Found".into()
             }
         };
@@ -344,26 +287,11 @@ async fn process_tale(form: web::Form<FormData>) -> impl Responder {
     NamedFile::open_async(call).await
 }
 
-async fn process_rust(form: web::Form<FormData>) -> impl Responder {
-    let call = process_lang("rust", form).await;
-
-    NamedFile::open_async(call).await
-}
-
-async fn process_python(form: web::Form<FormData>) -> impl Responder {
-    let call = process_lang("python", form).await;
-
-    NamedFile::open_async(call).await
-}
-
-async fn process_java(form: web::Form<FormData>) -> impl Responder {
-    let call = process_lang("java", form).await;
-
-    NamedFile::open_async(call).await
-}
-
-async fn process_html(form: web::Form<FormData>) -> impl Responder {
-    let call = process_lang("html", form).await;
+async fn process_code(form: web::Form<FormData>) -> impl Responder {
+    let call = match form.domain.clone() {
+        Some(dom) => process_lang(&dom, form).await,
+        None => process_lang("rust", form).await,
+    };
 
     NamedFile::open_async(call).await
 }
@@ -378,12 +306,13 @@ async fn process_lang(lang: &str, form: web::Form<FormData>) -> String {
     match language(lang, &prompt.to_lowercase(), &form.system).await {
         Ok(file) => file,
         Err(e) => {
-            eprintln!("{e}");
+            warn!("{e}");
             "Not Found".into()
         }
     }
 }
 
+/*
 async fn tale_detail(info: web::Form<std::collections::BTreeMap<String, String>>) -> impl Responder {
     let title = info.get("title").map_or("Story", String::as_str);
     println!("{title}");
@@ -400,6 +329,33 @@ async fn tale_detail(info: web::Form<std::collections::BTreeMap<String, String>>
             Ok(file) => file,
             Err(e) => {
                 eprintln!("{e}");
+                "Not Found".into()
+            }
+        };
+
+    NamedFile::open_async(call).await
+}
+*/
+async fn tale_detail(info: web::Form<std::collections::BTreeMap<String, String>>) -> impl Responder {
+    let title = info.get("title").map_or("Story", String::as_str);
+    let ord: BTreeMap<String, String> = info.iter()
+        .filter(|(n, _)| *n != "title")
+        .map(|(n, v)| (n.into(), v.into()))
+        .collect();
+    let ns: Vec<(String, String)> = ord.iter()
+        .filter(|(n, _)| n.starts_with("name"))
+        .map(|(_, v)| v)
+        .zip(ord.iter()
+            .filter(|(n, _)| n.starts_with("summary"))
+            .map(|(_, v)| v))
+        .map(|(n, s)| (n.into(), s.into()))
+        .collect();
+
+    let call =
+        match detail_tale(title, &ns).await {
+            Ok(file) => file,
+            Err(e) => {
+                warn!("{e}");
                 "Not Found".into()
             }
         };
@@ -429,19 +385,13 @@ async fn main() -> std::io::Result<()> {
             .service(picture_index)
             .service(image_index)
             .service(tale_index)
-            .service(rust_index)
-            .service(python_index)
-            .service(java_index)
-            .service(html_index)
+            .service(code_index)
             .route("/submit_news", web::post().to(proc_news))
             .route("/submit_pic", web::post().to(proc_pic))
             .route("/image", web::post().to(process_image))
             .route("/tale", web::post().to(process_tale))
             .route("/taledetail", web::post().to(tale_detail))
-            .route("/rust", web::post().to(process_rust))
-            .route("/python", web::post().to(process_python))
-            .route("/java", web::post().to(process_java))
-            .route("/html", web::post().to(process_html))
+            .route("/code", web::post().to(process_code))
             .service(gen)
             .service(pic)
             //.service(bench)
@@ -449,6 +399,7 @@ async fn main() -> std::io::Result<()> {
         })
         .keep_alive(Duration::from_secs(60 * TIMEOUT_PERIOD as u64));
 
+    //println!("{}", std::any::type_name_of_val(&server));
     match std::env::var("LIVE") {
         Ok(val) if val == "true" =>  {
             server.bind_openssl("0.0.0.0:443", ssl_builder)?

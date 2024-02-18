@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::path::Path;
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader};
@@ -5,13 +6,19 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use regex::Regex;
 use stringreader::StringReader;
-use crate::apis::openai::{Message, call_gpt, call_gpt_model, call_gpt_image_model, fetch_url};
+use crate::apis::openai::{Message, call_gpt, call_gpt_model, call_gpt_image_model, call_embedding_model, fetch_url};
+use fastembed::{FlagEmbedding, EmbeddingBase};
+use crate::apis::mistral::{call_mistral, call_mistral_model};
+//use crate::apis::gemini::{call_gemini, call_gemini_model, message_to_content};
+use crate::apis::bard::{call_bard, call_bard_model, message_to_content};
 use crate::image::render::{PAGE_TOTAL, mk_filename};
+use crate::template::Template;
 use serde_derive::{Serialize, Deserialize};
 //use serde_json::Value;
 //use shannon_entropy::shannon_entropy;
 use is_html::is_html;
-use strfmt::strfmt;
+//use strfmt::strfmt;
+use log::{warn, info};
 
 type LlmValue = (String, String, f32, bool);
 
@@ -19,11 +26,12 @@ type LlmValue = (String, String, f32, bool);
 pub struct GPTItem {
     pub title: String,
     pub body: String,
+    pub indb: bool,
 }
 
 impl GPTItem {
-    pub fn new(title: &str, body: &str) -> Self {
-        GPTItem { title: title.to_string(), body: body.to_string() }
+    pub fn new(title: &str, body: &str, indb: bool) -> Self {
+        GPTItem { title: title.to_string(), body: body.to_string(), indb }
     }
 
     pub fn size(&self) -> usize {
@@ -69,8 +77,9 @@ pub async fn llm_code(system: &str, req: &str, language: &str) -> Result<String,
     //let file = &format!("instructions/{language}_pre.txt");
     let file = "instructions/code_pre.txt";
 
+    let h = HashMap::from([("lang".to_string(), initcap(language))]);
     if Path::new(file).exists() {
-        let pre = parse_instructions(file).into_iter().map(|s| s.replace("${lang}", &initcap(language))).collect();
+        let pre = parse_instructions(file).into_iter().map(|s| Template::new(&s).render_strings(&h)).collect();
 
         add_messages("system", &pre, &mut messages);
     }
@@ -79,7 +88,30 @@ pub async fn llm_code(system: &str, req: &str, language: &str) -> Result<String,
 
     add_message("user", req, &mut messages);
 
-    call_gpt_model("gpt-4-1106-preview", messages, false).await
+    //call_gpt_model("gpt-4-1106-preview", messages, false).await
+    call_model(messages, true, false).await
+}
+
+pub async fn llm_embedding(req: &str) -> Result<Vec<f32>, Box<dyn std::error::Error + Send>> {
+    let model: String =
+        std::env::var("GPT_EMBEDDING_VERSION").expect("GPT_EMBEDDING_VERSION not found in enviornment variables");
+
+    call_embedding_model(&model, &[req.to_string()]).await
+}
+
+pub async fn get_embed_model() -> Result<FlagEmbedding, Box<dyn Error>> {
+    Ok(FlagEmbedding::try_new(Default::default())?)
+}
+
+pub async fn get_an_embedding(prompt: &str, model: &Option<FlagEmbedding>) -> Result<Vec<f32>, Box<dyn std::error::Error + Send>> {
+    match model {
+        None => {
+            llm_embedding(prompt).await
+        },
+        Some(model) => {
+            Ok(model.query_embed(prompt)?)
+        },
+    }
 }
 
 pub async fn llm_image(prompt: &str, system: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
@@ -114,10 +146,11 @@ pub async fn llm_brainstorm(file: &str, req: &str) -> Result<String, Box<dyn std
 
     add_message("user", req, &mut messages);
 
-    call_gpt_model("gpt-4-1106-preview", messages, false).await
+    //call_gpt_model("gpt-4-1106-preview", messages, false).await
+    call_model(messages, true, false).await
 }
 
-pub async fn llm_tale(text: &str, req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
+pub async fn llm_tale(text: &str, req: &str, n: usize) -> Result<String, Box<dyn std::error::Error + Send>> {
     let mut messages: Vec<Message> = Vec::new();
 
     if Path::new("instructions/tale_pre.txt").exists() {
@@ -131,15 +164,17 @@ pub async fn llm_tale(text: &str, req: &str) -> Result<String, Box<dyn std::erro
     add_messages("system", &sys, &mut messages);
 
     if Path::new("instructions/tale_post.txt").exists() {
-        let post = parse_instructions("instructions/tale_post.txt");
+        let h = HashMap::from([("chapters".to_string(), n.to_string())]);
+        let post = parse_instructions("instructions/tale_post.txt").into_iter().map(|s| Template::new(&s).render_strings(&h)).collect();
 
         add_messages("system", &post, &mut messages);
     }
 
     add_message("user", req, &mut messages);
 
-    call_gpt_model("gpt-4-1106-preview", messages, false).await
+    //call_gpt_model("gpt-4-1106-preview", messages, false).await
     //call_gpt_model("gpt-3.5-turbo-1106", messages, false).await
+    call_model(messages, true, false).await
 }
 
 pub async fn llm_tale_detail(req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
@@ -154,7 +189,25 @@ pub async fn llm_tale_detail(req: &str) -> Result<String, Box<dyn std::error::Er
     add_message("user", req, &mut messages);
 
     //call_gpt_model("gpt-4-1106-preview", messages, true).await
-    call_gpt_model("gpt-3.5-turbo-1106", messages, false).await
+    //call_gpt_model("gpt-3.5-turbo-1106", messages, false).await
+    call_model(messages, true, false).await
+}
+
+async fn call_model(messages: Vec<Message>, high: bool, is_json: bool) -> Result<String, Box<dyn std::error::Error + Send>> {
+    let llm: &str = &std::env::var("LLM_TO_USE").map_err(anyhow::Error::new)?;
+
+    match llm {
+        "mistral" => {
+            let model: &str = &std::env::var(if high { "MISTRAL_HIGH_VERSION" } else { "MISTRAL_VERSION" }).map_err(anyhow::Error::new)?;
+            call_mistral_model(model, messages).await
+        },
+//        "google" | "gemini" => call_gemini_model(message_to_content(&messages)).await,
+        "bard" => call_bard_model(message_to_content(&messages)).await,
+        _ => {
+            let model: &str = &std::env::var(if high { "GPT_HIGH_VERSION" } else { "GPT_VERSION" }).map_err(anyhow::Error::new)?;
+            call_gpt_model(model, messages, is_json).await
+        },
+    }
 }
 
 /*
@@ -169,25 +222,29 @@ pub async fn llm_news_items(prompt: &str, title: &str, req: &str, its: u32) -> R
 }
 */
 
-pub async fn llm_news(item: &Vec<GPTItem>, its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
+pub async fn llm_news(item: &[GPTItem], its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
     llm_news_text(item, its).await
 }
 
-pub async fn llm_news_text(items: &Vec<GPTItem>, its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
+pub async fn llm_news_text(items: &[GPTItem], its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
     let sum_len = (600 * PAGE_TOTAL) / its;
-    let word_len = sum_len / 7;
+    let title_len = 30;
+    //let title_len = sum_len / 7;
+    let body_len = sum_len * 5;
     let mut vars: HashMap<String, String> = HashMap::new();
-    vars.insert("word_len".to_string(), word_len.to_string());
+
+    vars.insert("title_len".to_string(), title_len.to_string());
+    vars.insert("body_len".to_string(), body_len.to_string());
 
     let sys = parse_instructions("instructions/news_sys.txt");
-    let sys: Vec<String> = sys.iter().map(|s| strfmt(s, &vars).unwrap()).collect();
+    let sys: Vec<String> = sys.iter().map(|s| Template::new(s).render_strings(&vars)).collect();
 
     let res = llm_news_items_with_context(&vec![], &sys, items).await?;
- 
-    unpack_llm(&res, items)
+
+    unpack_llm(&res.replace("\\_", "_"), items)
 }
 
-async fn llm_news_items_with_context(prior: &Vec<String>, context: &Vec<String>, item: &Vec<GPTItem>) -> Result<String, Box<dyn std::error::Error + Send>> {
+async fn llm_news_items_with_context(prior: &Vec<String>, context: &Vec<String>, item: &[GPTItem]) -> Result<String, Box<dyn std::error::Error + Send>> {
     let start = std::time::Instant::now();
 
     let req = pack_llm(item)?;
@@ -198,18 +255,22 @@ async fn llm_news_items_with_context(prior: &Vec<String>, context: &Vec<String>,
     add_messages("system", context, &mut messages);
     add_message("user", &req, &mut messages);
 
-    let resp = call_gpt(messages).await;
+    let llm: &str = &std::env::var("LLM_TO_USE").map_err(anyhow::Error::new)?;
+    let resp = match llm {
+        "mistral" => call_mistral(messages).await,
+//        "google" | "gemini" => call_gemini(message_to_content(&messages)).await,
+        "bard" => call_bard(message_to_content(&messages)).await,
+        _ => call_gpt(messages).await,
+    };
 
-    println!("LLM took {:?} for {} entries, net {:?}", start.elapsed(), item.len(), start.elapsed() / item.len() as u32);
+    info!("{llm} LLM took {:?} for {} entries, net {:?}", start.elapsed(), item.len(), start.elapsed() / item.len() as u32);
 
     resp
 }
 
 fn pack_llm(item: &[GPTItem]) -> Result<String, Box<dyn std::error::Error + Send>> {
-//println!("pack_llm {} {}", item[0].title, item[0].body.len());
     let data: String = item.iter().enumerate()
         .map(|(i, n)| (i, &n.title, &n.body))
-        //.filter(|(_, _, body)| body != SUMMARIZE_ERROR)
         .fold(String::new(), |mut o, (i, title, body)| {
             let _ = write!(o, "\"title_{i}\": \"{title}\", \"body_{i}\": \"{body}\", ");
             o
@@ -225,22 +286,23 @@ fn pack_llm(item: &[GPTItem]) -> Result<String, Box<dyn std::error::Error + Send
     }
 }
 
-fn unpack_llm(result: &str, items: &Vec<GPTItem>) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
+fn unpack_llm(result: &str, items: &[GPTItem]) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
 //println!("unpack_llm {}", res);
     // Treat sentiment as String and convert, simpler that dealing with Values
-    let re = Regex::new(r#"("sentiment_[0-9]+"): ([+-]?[0-9]+\.[0-9]+)"#).unwrap();
-    let res: &str = &re.replace_all(result, "$1: \"$2\"");
-    let h: HashMap<String, String> = serde_json::from_str(res).map_err(anyhow::Error::new)?;
+    //let re = Regex::new(r#"("sentiment_[0-9]+"): ([+-]?[0-9]+\.[0-9]+)"#).unwrap();
+    //let result: &str = &re.replace_all(result, "$1: \"$2\"");
+    let h: HashMap<String, String> = serde_json::from_str(result).map_err(anyhow::Error::new)?;
     let mut res: Vec<LlmValue> = vec![];
 
-    for i in 0 .. items.len() {
+    //for i in 0 .. items.len() {
+    for (i, item) in items.iter().enumerate() {
         let title = h.get(&format!("title_{}", i));
         let title =
             match title {
                 Some(title) => title,
                 None => {
-                    println!("Bad Title: {:?}", title);
-                    res.push((items[i].title.clone(), "".into(), 0.0, false));
+                    warn!("Bad Title: {:?}", title);
+                    res.push((item.title.clone(), "".into(), 0.0, false));
                     continue
                 }
             };
@@ -249,8 +311,8 @@ fn unpack_llm(result: &str, items: &Vec<GPTItem>) -> Result<Vec<LlmValue>, Box<d
             match body {
                 Some(body) => body,
                 None => {
-                    println!("Bad Body: {:?}", body);
-                    res.push((items[i].title.clone(), "".into(), 0.0, false));
+                    warn!("Bad Body: {:?}", body);
+                    res.push((item.title.clone(), "".into(), 0.0, false));
                     continue
                 }
             };
@@ -278,7 +340,7 @@ fn unpack_llm(result: &str, items: &Vec<GPTItem>) -> Result<Vec<LlmValue>, Box<d
 //println!("{:?}", sentiment);
         */
         let sentiment = 0.0;
-        res.push((title.into(), body.into(), sentiment, true));
+        res.push((title.into(), body.into(), sentiment, item.indb));
     }
 
     Ok(res)
@@ -293,7 +355,7 @@ pub fn clean_html(body: &str) -> String {
     let body = truncate_sentence(&body, 3000).to_owned();
 
     if body.len() < 500 || is_html(&body) {
-        println!("Poor Quality len: {}", body.len());
+        warn!("Poor Quality len: {}", body.len());
 
         SUMMARIZE_ERROR.to_owned()
     } else {
@@ -312,7 +374,6 @@ pub fn parse_text_instructions(text: &str) -> Vec<String> {
 }
 
 fn instructions(lines: &Vec<String>) -> Vec<String> {
-//println!("{:?}", lines);
     let mut ins: Vec<String> = vec![];
     let mut line = "".to_string();
 
