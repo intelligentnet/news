@@ -4,7 +4,6 @@ use chrono::{DateTime, Utc, TimeZone, Duration};
 use std::hash::{Hash, Hasher};
 use std::error::Error;
 use std::env::var;
-use crate::llm::gpt::llm_embedding;
 use log::info;
 
 pub fn connect_string() -> Result<String, Box<dyn Error>> {
@@ -27,12 +26,13 @@ pub struct DbNewsItem<Utc: TimeZone> {
     pub dt: DateTime<Utc>,
     pub sentiment: f32,
     pub embedding: Option<Vec<f32>>,
+    pub url_to_image: Option<String>,
     pub indb: bool,
 }
 
 impl DbNewsItem<Utc> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(url: &str, prompt: &str, source: &str, title: &str, dt: DateTime<Utc>, summary: &Option<String>, queried: bool, sentiment: f32, embedding: Option<Vec<f32>>, indb: bool) -> Self {
+    pub fn new(url: &str, prompt: &str, source: &str, title: &str, dt: DateTime<Utc>, summary: &Option<String>, queried: bool, sentiment: f32, embedding: Option<Vec<f32>>, url_to_image: Option<String>, indb: bool) -> Self {
         DbNewsItem {
             url: url.into(),
             prompt: prompt.into(),
@@ -43,6 +43,7 @@ impl DbNewsItem<Utc> {
             dt,
             sentiment,
             embedding,
+            url_to_image,
             indb,
         }
     }
@@ -97,8 +98,9 @@ pub async fn get_rows(rows: &Vec<Row>) -> Vec<DbNewsItem<Utc>> {
         let sentiment: f32 = row.get(7);
         let pgvec: Option<Vector> = row.get(8);
         let embedding = pgvec.map(|pgvec| pgvec.into());
+        let url_to_image = row.get(9);
 
-        let n = DbNewsItem {url: url.into(), prompt: prompt.into(), source: source.into(), title: title.into(), summary, queried, dt, sentiment, embedding, indb: true };
+        let n = DbNewsItem {url: url.into(), prompt: prompt.into(), source: source.into(), title: title.into(), summary, queried, dt, sentiment, embedding, indb: true, url_to_image };
 
         rs.push(n);
     }
@@ -115,16 +117,9 @@ pub async fn add_news(client: &mut Client, input: &[DbNewsItem<Utc>]) -> Result<
 }
 
 pub async fn add_news_item(client: &mut Client, i: &DbNewsItem<Utc>, count: u32) -> Result<(), Box<dyn Error>> {
-    //let embedding = i.embedding.as_ref().map(|e| Vector::from(e.clone()));
-    let embedding = if i.embedding.is_none() {
-        let v = llm_embedding(&i.title).await;
-        Some(v.as_ref().map(|e| Vector::from(e.clone())).unwrap())
-    } else {
-//println!("item: {}", i.title);
-        i.embedding.as_ref().map(|e| Vector::from(e.clone()))
-    };
+    let embedding = i.embedding.as_ref().map(|e| Vector::from(e.clone()));
 
-    client.execute("INSERT INTO news_items (url, prompt, source, title, summary, queried, dt, seq, sentiment, embedding) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT ON CONSTRAINT news_pk DO UPDATE SET title = $4, summary = $5, queried = $6, dt = $7, seq = $8, sentiment = $9", &[&i.url, &i.prompt, &i.source, &i.title, &i.summary, &i.queried, &i.dt, &count, &i.sentiment, &embedding]).await?;
+    client.execute("INSERT INTO news_items (url, prompt, source, title, summary, queried, dt, seq, sentiment, embedding, url_to_image) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT ON CONSTRAINT news_pk DO UPDATE SET title = $4, summary = $5, queried = $6, dt = $7, seq = $8, sentiment = $9", &[&i.url, &i.prompt, &i.source, &i.title, &i.summary, &i.queried, &i.dt, &count, &i.sentiment, &embedding, &i.url_to_image]).await?;
     
     Ok(())
 }
@@ -132,9 +127,19 @@ pub async fn add_news_item(client: &mut Client, i: &DbNewsItem<Utc>, count: u32)
 pub async fn add_prompt_embed(client: &mut Client, embedding: Vec<f32>, prompt: &str, format: &str) -> Result<(), Box<dyn Error>> {
     let embedding = Vector::from(embedding);
 
-    client.execute("INSERT INTO prompt_embed (prompt, format, embedding) VALUES ($1, $2, $3) ON CONFLICT ON CONSTRAINT prompt_embed_pkey DO UPDATE set format = $2, dt = 'now'", &[&prompt, &format, &embedding]).await?;
+    client.execute("INSERT INTO prompt_embed (prompt, format, embedding) VALUES ($1, $2, $3) ON CONFLICT ON CONSTRAINT prompt_embed_pkey DO NOTHING", &[&prompt, &format, &embedding]).await?;
 
     Ok(())
+}
+
+pub async fn has_prompt_embed(client: &mut Client, prompt: &str) -> bool {
+    let res = client.query("SELECT 1 FROM prompt_embed WHERE prompt = $1", &[&prompt]).await;
+
+    if let Ok(rows) = res {
+        !rows.is_empty()
+    } else {
+        false
+    }
 }
 
 /*
@@ -142,12 +147,12 @@ pub async fn add_prompt_embed(client: &mut Client, model: &Option<FlagEmbedding>
     let embedding = match model {
         None => {
             let v = llm_embedding(prompt).await.unwrap();
-            Some(Vector::from(v))
+            Some(Vector:rom(v))
         }
         Some(model) => {
 //println!("embed: {prompt}");
             let embedding = model.query_embed(prompt)?;
-            Some(Vector::from(embedding))
+            Some(Vector:rom(embedding))
         },
     };
     client.execute("INSERT INTO prompt_embed (prompt, format, embedding) VALUES ($1, $2, $3) ON CONFLICT ON CONSTRAINT prompt_embed_pkey DO UPDATE set format = $2, dt = 'now'", &[&prompt, &format, &embedding]).await?;
@@ -179,8 +184,8 @@ pub async fn reset_news_item_seq(client: &mut Client, prompt: &str) -> Result<()
     Ok(())
 }
 
-pub async fn del_news_item(client: &mut Client, prompt: &str, url: &str) -> Result<(), Box<dyn Error>> {
-    client.execute("DELETE FROM news_items WHERE url = $2 AND prompt = $1", &[&prompt, &url]).await?;
+pub async fn del_news_item(client: &mut Client, url: &str) -> Result<(), Box<dyn Error>> {
+    client.execute("DELETE FROM news_items WHERE url = $1", &[&url]).await?;
     
     Ok(())
 }
@@ -193,24 +198,25 @@ pub async fn del_news_title(client: &mut Client, prompt: &str, title: &str) -> R
 }
 
 pub async fn clear_news(client: &mut Client, prompt: &str, hours: u32, purge: u32) -> Result<(), Box<dyn Error>> {
-    let dt: DateTime<Utc> = Utc::now() - Duration::hours(hours.into());
-    let created: DateTime<Utc> = Utc::now() - Duration::hours(purge.into());
+    let dt: DateTime<Utc> = Utc::now() - Duration::try_hours(hours.into()).unwrap();
+    let created: DateTime<Utc> = Utc::now() - Duration::try_hours(purge.into()).unwrap();
 
     //client.execute("DELETE FROM prompt_embed WHERE prompt = $1", &[&prompt]).await?;
     
     let rows: Vec<Row> = client.query("DELETE FROM news_items WHERE prompt = $1 AND ((summary IS NULL AND dt < $2) OR created < $3) RETURNING 1", &[&prompt, &dt, &created]).await?;
 
-    info!("{} rows cleared", rows.len());
+    info!("{prompt}: {} rows cleared", rows.len());
     
     Ok(())
 }
 
 /*
 */
-pub async fn tidy_news(client: &mut Client) -> Result<(), Box<dyn Error>> {
-    let dt: DateTime<Utc> = Utc::now() - Duration::days(7);
+pub async fn tidy_news(client: &mut Client, days: u32) -> Result<(), Box<dyn Error>> {
+    let dt: DateTime<Utc> = Utc::now() - Duration::try_days(days.into()).unwrap();
+println!("######### {dt:?}");
 
-    client.execute("DELETE FROM prompt_embed WHERE dt < $1", &[&dt]).await?;
+    //client.execute("DELETE FROM prompt_embed WHERE dt < $1", &[&dt]).await?;
     
     client.execute("DELETE FROM news_items WHERE dt < $1 AND NOT EXISTS (SELECT 1 FROM prompt_embed WHERE news_items.prompt = prompt OR news_items.embedding <=> embedding < 0.25)", &[&dt]).await?;
     
@@ -218,9 +224,9 @@ pub async fn tidy_news(client: &mut Client) -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn get_saved_news(client: &mut Client, prompt: &str) -> Result<Vec<DbNewsItem<Utc>>, Box<dyn Error>> {
-    let rows: Vec<Row> = client.query("SELECT url, a.prompt, source, title, summary, queried, a.dt, sentiment, a.embedding FROM news_items a, prompt_embed b WHERE b.prompt = $1 AND (a.prompt = b.prompt OR a.embedding <=> b.embedding < 0.25)ORDER BY sentiment, seq, a.dt", &[&prompt]).await?;
+    let rows: Vec<Row> = client.query("SELECT url, a.prompt, source, title, summary, queried, a.dt, sentiment, a.embedding, a.url_to_image FROM news_items a, prompt_embed b WHERE b.prompt = $1 AND (a.prompt = b.prompt OR 1 - (a.embedding <=> b.embedding) > 0.25) ORDER BY sentiment, a.dt desc", &[&prompt]).await?;
 
-    info!("{} rows found", rows.len());
+    info!("{prompt}: {} rows found", rows.len());
 
     Ok(get_rows(&rows).await)
 }

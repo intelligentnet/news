@@ -1,38 +1,67 @@
-export OPEN_AI_KEY=<Your Key>
-export NEWSAPI_KEY=<Your Key>
-export PG_HOST=<Your Host>
-export PG_DB=<Your DB>
-export PG_USER=<Your User>
-export PG_PASS=<Your Password>
+# News API signon: Targetr / MySignage01
+export NEWSAPI_KEY=<key>
+export SERPAPI_KEY=<key>
+export NEWSDATA_API_KEY=<key>
+export NEWSAPI_KEY=<key>
+#export NEWSAPI_URL=https://newsapi.org/v2/top-headlines
+export NEWSAPI_URL=https://newsapi.org/v2/everything
 
-export GPT_VERSION=gpt-3.5-turbo-1106
-export GPT_HIGH_VERSION=gpt-4-0125-preview
-export GPT_IMAGE_VERSION=dall-e-3
-export GPT_EMBEDDING_VERSION=text-embedding-3-small
+# Email config
+export EMAIL_HOST=netsol-smtp-oxcs.hostingplatform.com
+export EMAIL_USER=llm@intelligent-net.org
+export EMAIL_PASS=<key>
+
+# Postgres connection data
+export PG_HOST=chris-llm
+export PG_DB=news
+export PG_USER=news
+export PG_PASS=<key>
+#export DOMAIN=https://intelligent-net.ddns.net
+
+export OPENAI_API_KEY=<key>
+
+export GPT_MODEL=gpt-3.5-turbo
+#export GPT_HIGH_MODEL=gpt-4-1106-preview
+#export GPT_HIGH_MODEL=gpt-4-0125-preview
+export GPT_HIGH_MODEL=gpt-4-turbo-preview
+#export GPT_MODEL=gpt-4-1106-preview
+export GPT_IMAGE_MODEL=dall-e-3
+#export GPT_EMBEDDING_MODEL=text-embedding-ada-002
+export GPT_EMBEDDING_MODEL=text-embedding-3-small
 
 export GPT_CHAT_URL=https://api.openai.com/v1/chat/completions
 export GPT_IMAGE_URL=https://api.openai.com/v1/images/generations
 export GPT_EMBEDDING_URL=https://api.openai.com/v1/embeddings
 
+#chris-secret-key
+export ANTHROPIC_API_KEY=<key>
+export CLAUDE_MODEL=claude-3-opus-20240229
+export CLAUDE_HIGH_MODEL=claude-3-opus-20240229
+export CLAUDE_URL=https://api.anthropic.com/v1/messages
+export CLAUDE_VERSION=2023-06-01
+
+#export TIMEOUT_PERIOD=3
+#export CLEAR_TIMEOUT_PERIOD=24
+
+export MISTRAL_API_KEY=<key>
+export MISTRAL_MODEL=mistral-medium
+export MISTRAL_HIGH_MODEL=mistral-medium
+export MISTRAL_URL=https://api.mistral.ai/v1/chat/completions
+
+export GEMINI_REGION=us-central1
+#export BARD_LOCATION=us-east4
+export GEMINI_PROJECT_ID=targetr-news
+export GEMINI_MODEL=gemini-pro
+export GEMINI_HIGH_MODEL=gemini-ultra
+export GEMINI_URL='https://${GEMINI_REGION}-aiplatform.googleapis.com/v1/projects/${GEMINI_PROJECT_ID}/locations/${GEMINI_REGION}/publishers/google/models/${GEMINI_MODEL}:streamGenerateContent'
+
+## TODO - one for each vendor
 export CONTEXT_SIZE=16000
-
-export EMAIL_HOST=?
-export EMAIL_USER=?
-export EMAIL_PASS=?
-
-export MISTRAL_API_KEY=?
-export MISTRAL_VERSION=mistral-medium
-export MISTRAL_HIGH_VERSION=mistral-medium
-
-export BARD_LOCATION=us-central1
-export BARD_APPLICATION=?
-export BARD_VERSION=gemini-pro
-export BARD_HIGH_VERSION=gemini-ultra
-export BARD_URL='https://${BARD_LOCATION}-aiplatform.googleapis.com/v1/projects/${BARD_APPLICATION}/locations/${BARD_LOCATION}/publishers/google/models/${BARD_VERSION}:streamGenerateContent'
-export PROJECT='My Project Description'
-
-# openai, mistral, bard (and soon gemini)
-export LLM_TO_USE=openai
-
-# Set this to use ports 80 and 443 (have your key files installed)
+export PROJECT='Targetr News'
+export IP_ALLOW=132.145.63.22,34.69.251.136,74.234.200.81,13.250.111.23,34.86.9.145,45.79.84.107,127.0.0.1
+export LLM_TO_USE=groq
 #export LIVE=true
+
+export GROQ_API_KEY=<key>
+export GROQ_CHAT_URL=https://api.groq.com/openai/v1/chat/completions
+export GROQ_MODEL=mixtral-8x7b-32768

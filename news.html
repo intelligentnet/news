@@ -73,12 +73,35 @@
     <div class="container">
         <h1>Generate News Feed</h1>
         <form method="post" id="news" action="submit_news" onsubmit="showSpinner(); return true;">
-            <label for="prompt">News Prompt:</label>
+	    <label for="prompt">News Prompt:</label>
             <input type="text" id="prompt" name="prompt" size="60" required>
-            
+            <!--
+	    <label for="prompt">Preferred News Category:</label>
+	    <select name="prompt" id="prompt">
+	      <option value="world">World News</option>
+	      <option value="business">Business</option>
+	      <option value="politics">Politics</option>
+	      <option value="culture">Culture</option>
+	      <option value="technology">Technology</option>
+	      <option value="science">Science</option>
+	      <option value="health">Health</option>
+	      <option value="education">Education</option>
+	      <option value="israel">Israel</option>
+	      <option value="ukraine">Ukraine</option>
+	      <option value="cost of living">Cost of Living</option>
+	    -->
+	      <!--
+	      <option value="africa">africa</option>
+	      <option value="north america">North America</option>
+	      <option value="central america">Central America</option>
+	      <option value="south america">South America</option>
+	      <option value="northern europe">Northern Europe</option>
+	      <option value="southern europe">Southern Europe</option>
+	    </select>
+	    -->
             <input type="submit" value="Submit">
             <input type="hidden" id="callback" name="callback" value="${callback}">
-	    <input type="hidden" id="domain" name="domain" value="https://intelligent-net.ddns.net">
+	    <input type="hidden" id="domain" name="domain" value="${DOMAIN:-http://localhost:8080}">
             <input type="hidden" id="system" name="system" value="">
 
         </form>

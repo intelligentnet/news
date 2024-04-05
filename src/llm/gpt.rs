@@ -1,4 +1,4 @@
-use std::error::Error;
+//use std::error::Error;
 use std::path::Path;
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader};
@@ -6,13 +6,18 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use regex::Regex;
 use stringreader::StringReader;
-use crate::apis::openai::{Message, call_gpt, call_gpt_model, call_gpt_image_model, call_embedding_model, fetch_url};
-use fastembed::{FlagEmbedding, EmbeddingBase};
-use crate::apis::mistral::{call_mistral, call_mistral_model};
-//use crate::apis::gemini::{call_gemini, call_gemini_model, message_to_content};
-use crate::apis::bard::{call_bard, call_bard_model, message_to_content};
+//use crate::apis::openai::{Message, call_gpt, call_gpt_model, call_gpt_image_model, call_embedding_model};
+use crate::apis::openai::{call_gpt_image_model, call_embedding_model};
+//use fastembed::{TextEmbedding};
+//use crate::apis::mistral::{call_mistral, call_mistral_model};
+//use crate::apis::anthropic::{call_anthropic, call_anthropic_model};
+use llmclient::common::LlmMessage;
+use llmclient::gemini::{call_gemini, Part, Content};
+use llmclient::gpt::{call_gpt_json, GptMessage};
+use llmclient::claude::{call_claude};
+use llmclient::mistral::{call_mistral};
 use crate::image::render::{PAGE_TOTAL, mk_filename};
-use crate::template::Template;
+use stemplate::Template;
 use serde_derive::{Serialize, Deserialize};
 //use serde_json::Value;
 //use shannon_entropy::shannon_entropy;
@@ -73,7 +78,7 @@ pub fn initcap(word: &str) -> String {
 }
 
 pub async fn llm_code(system: &str, req: &str, language: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
-    let mut messages: Vec<Message> = Vec::new();
+    let mut messages: Vec<GptMessage> = Vec::new();
     //let file = &format!("instructions/{language}_pre.txt");
     let file = "instructions/code_pre.txt";
 
@@ -85,38 +90,29 @@ pub async fn llm_code(system: &str, req: &str, language: &str) -> Result<String,
     }
 
     add_message("system", system, &mut messages);
-
     add_message("user", req, &mut messages);
 
     //call_gpt_model("gpt-4-1106-preview", messages, false).await
-    call_model(messages, true, false).await
+    call_model(messages, 1, false).await
 }
 
-pub async fn llm_embedding(req: &str) -> Result<Vec<f32>, Box<dyn std::error::Error + Send>> {
+pub async fn llm_embedding(req: &str) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error + Send>> {
     let model: String =
-        std::env::var("GPT_EMBEDDING_VERSION").expect("GPT_EMBEDDING_VERSION not found in enviornment variables");
+        std::env::var("GPT_EMBEDDING_MODEL").expect("GPT_EMBEDDING_MODEL not found in enviornment variables");
 
     call_embedding_model(&model, &[req.to_string()]).await
 }
 
-pub async fn get_embed_model() -> Result<FlagEmbedding, Box<dyn Error>> {
-    Ok(FlagEmbedding::try_new(Default::default())?)
-}
+pub async fn llm_embedding_many(req: &[String]) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error + Send>> {
+    let model: String =
+        std::env::var("GPT_EMBEDDING_MODEL").expect("GPT_EMBEDDING_MODEL not found in enviornment variables");
 
-pub async fn get_an_embedding(prompt: &str, model: &Option<FlagEmbedding>) -> Result<Vec<f32>, Box<dyn std::error::Error + Send>> {
-    match model {
-        None => {
-            llm_embedding(prompt).await
-        },
-        Some(model) => {
-            Ok(model.query_embed(prompt)?)
-        },
-    }
+    call_embedding_model(&model, req).await
 }
 
 pub async fn llm_image(prompt: &str, system: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
     let url = call_gpt_image_model("dall-e-3", &format!("{prompt}\n{system}"), "1792x1024", 1).await?;
-    let file = &mk_filename(prompt);
+    let file = &mk_filename(prompt);   // Must be relative path    
 
     match fetch_url(&url, file).await {
         Ok(()) => Ok(file.into()),
@@ -125,7 +121,7 @@ pub async fn llm_image(prompt: &str, system: &str) -> Result<String, Box<dyn std
 }
 
 pub async fn llm_brainstorm(file: &str, req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
-    let mut messages: Vec<Message> = Vec::new();
+    let mut messages: Vec<GptMessage> = Vec::new();
     let bits: Vec<&str> = file.split('.').collect();
 
     if bits.len() == 2 && Path::new(&format!("{}_pre.{}", bits[0], bits[1])).exists() {
@@ -146,12 +142,11 @@ pub async fn llm_brainstorm(file: &str, req: &str) -> Result<String, Box<dyn std
 
     add_message("user", req, &mut messages);
 
-    //call_gpt_model("gpt-4-1106-preview", messages, false).await
-    call_model(messages, true, false).await
+    call_model(messages, 1, false).await
 }
 
 pub async fn llm_tale(text: &str, req: &str, n: usize) -> Result<String, Box<dyn std::error::Error + Send>> {
-    let mut messages: Vec<Message> = Vec::new();
+    let mut messages: Vec<GptMessage> = Vec::new();
 
     if Path::new("instructions/tale_pre.txt").exists() {
         let pre = parse_instructions("instructions/tale_pre.txt");
@@ -172,13 +167,11 @@ pub async fn llm_tale(text: &str, req: &str, n: usize) -> Result<String, Box<dyn
 
     add_message("user", req, &mut messages);
 
-    //call_gpt_model("gpt-4-1106-preview", messages, false).await
-    //call_gpt_model("gpt-3.5-turbo-1106", messages, false).await
-    call_model(messages, true, false).await
+    call_model(messages, 1, false).await
 }
 
 pub async fn llm_tale_detail(req: &str) -> Result<String, Box<dyn std::error::Error + Send>> {
-    let mut messages: Vec<Message> = Vec::new();
+    let mut messages: Vec<GptMessage> = Vec::new();
 
     if Path::new("instructions/tale_detail.txt").exists() {
         let pre = parse_instructions("instructions/tale_detail.txt");
@@ -188,26 +181,69 @@ pub async fn llm_tale_detail(req: &str) -> Result<String, Box<dyn std::error::Er
 
     add_message("user", req, &mut messages);
 
-    //call_gpt_model("gpt-4-1106-preview", messages, true).await
-    //call_gpt_model("gpt-3.5-turbo-1106", messages, false).await
-    call_model(messages, true, false).await
+    call_model(messages, 1, false).await
 }
 
-async fn call_model(messages: Vec<Message>, high: bool, is_json: bool) -> Result<String, Box<dyn std::error::Error + Send>> {
+async fn call_model(messages: Vec<GptMessage>, len: usize, is_json: bool) -> Result<String, Box<dyn std::error::Error + Send>> {
+    let start = std::time::Instant::now();
+
     let llm: &str = &std::env::var("LLM_TO_USE").map_err(anyhow::Error::new)?;
 
-    match llm {
-        "mistral" => {
-            let model: &str = &std::env::var(if high { "MISTRAL_HIGH_VERSION" } else { "MISTRAL_VERSION" }).map_err(anyhow::Error::new)?;
-            call_mistral_model(model, messages).await
-        },
-//        "google" | "gemini" => call_gemini_model(message_to_content(&messages)).await,
-        "bard" => call_bard_model(message_to_content(&messages)).await,
-        _ => {
-            let model: &str = &std::env::var(if high { "GPT_HIGH_VERSION" } else { "GPT_VERSION" }).map_err(anyhow::Error::new)?;
-            call_gpt_model(model, messages, is_json).await
-        },
-    }
+    let rets = 
+        match llm {
+            "mistral" => {
+                let rets = call_mistral(messages.clone()).await?;
+
+                rets.text
+            },
+            "anthropic" | "claude" => {
+                let rets = call_claude(messages.clone()).await?;
+
+                rets.text
+            },
+            "google" | "gemini" => {
+                if true {
+                    let mut contents: Vec<Content> = Vec::new();
+
+                    let smess = extract_role("system", &messages);
+                    let umess = extract_role("user", &messages);
+
+                    contents.push(Content::text("user", &smess));
+                    contents.push(Content::text("model", "Understood."));
+                    contents.push(Content::text("user", &umess));
+
+                    let rets = call_gemini(contents).await?;
+
+                    rets.text
+                } else {
+                    let rets = call_gemini(message_to_content(&messages)).await?;
+
+                    rets.text
+                }
+            },
+            _ => {
+                let rets = call_gpt_json(messages.clone(), is_json).await?;
+
+                rets.text
+            },
+        };
+
+    info!("{llm} LLM took {:?} for {} entries, net {:?}", start.elapsed(), len, start.elapsed() / len as u32);
+
+    Ok(rets)
+}
+
+fn extract_role(role: &str, messages: &[GptMessage]) -> String {
+    messages.iter()
+        .filter(|m| role == m.role)
+        .fold(String::new(), |mut s, i| {
+            if !s.is_empty() {
+                s.push('\n');
+            }
+            s.push_str(&i.content);
+
+            s
+        })
 }
 
 /*
@@ -222,19 +258,21 @@ pub async fn llm_news_items(prompt: &str, title: &str, req: &str, its: u32) -> R
 }
 */
 
-pub async fn llm_news(item: &[GPTItem], its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
-    llm_news_text(item, its).await
+pub async fn llm_news(item: &[GPTItem], prompt: &str, its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
+    llm_news_text(item, prompt, its).await
 }
 
-pub async fn llm_news_text(items: &[GPTItem], its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
+pub async fn llm_news_text(items: &[GPTItem], prompt: &str, its: usize) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
     let sum_len = (600 * PAGE_TOTAL) / its;
     let title_len = 30;
     //let title_len = sum_len / 7;
     let body_len = sum_len * 5;
     let mut vars: HashMap<String, String> = HashMap::new();
 
+    vars.insert("prompt".to_string(), prompt.to_string());
     vars.insert("title_len".to_string(), title_len.to_string());
     vars.insert("body_len".to_string(), body_len.to_string());
+    vars.insert("entries".to_string(), format!("{}", items.len()));
 
     let sys = parse_instructions("instructions/news_sys.txt");
     let sys: Vec<String> = sys.iter().map(|s| Template::new(s).render_strings(&vars)).collect();
@@ -245,27 +283,22 @@ pub async fn llm_news_text(items: &[GPTItem], its: usize) -> Result<Vec<LlmValue
 }
 
 async fn llm_news_items_with_context(prior: &Vec<String>, context: &Vec<String>, item: &[GPTItem]) -> Result<String, Box<dyn std::error::Error + Send>> {
-    let start = std::time::Instant::now();
-
     let req = pack_llm(item)?;
-    let mut messages: Vec<Message> = Vec::new();
+    let mut messages: Vec<GptMessage> = Vec::new();
 
-//println!("{:?}", context);
     add_messages("assistant", prior, &mut messages);
     add_messages("system", context, &mut messages);
     add_message("user", &req, &mut messages);
 
-    let llm: &str = &std::env::var("LLM_TO_USE").map_err(anyhow::Error::new)?;
-    let resp = match llm {
-        "mistral" => call_mistral(messages).await,
-//        "google" | "gemini" => call_gemini(message_to_content(&messages)).await,
-        "bard" => call_bard(message_to_content(&messages)).await,
-        _ => call_gpt(messages).await,
-    };
+    call_model(messages, item.len(), true).await
+}
 
-    info!("{llm} LLM took {:?} for {} entries, net {:?}", start.elapsed(), item.len(), start.elapsed() / item.len() as u32);
+fn message_to_content(messages: &[GptMessage]) -> Vec<Content> {
+    let parts: Vec<Part> = messages.iter()
+        .map(|m| Part::text(&m.content))
+        .collect();
 
-    resp
+    vec![Content { role: "user".into(), parts }]
 }
 
 fn pack_llm(item: &[GPTItem]) -> Result<String, Box<dyn std::error::Error + Send>> {
@@ -287,10 +320,20 @@ fn pack_llm(item: &[GPTItem]) -> Result<String, Box<dyn std::error::Error + Send
 }
 
 fn unpack_llm(result: &str, items: &[GPTItem]) -> Result<Vec<LlmValue>, Box<dyn std::error::Error + Send>> {
-//println!("unpack_llm {}", res);
     // Treat sentiment as String and convert, simpler that dealing with Values
     //let re = Regex::new(r#"("sentiment_[0-9]+"): ([+-]?[0-9]+\.[0-9]+)"#).unwrap();
     //let result: &str = &re.replace_all(result, "$1: \"$2\"");
+    // Following only required by Gemini!
+    let end: usize = match result.find('}') {
+        Some(s) => s,
+        None => result.len()
+    };
+    let result = &result[..=end];
+    let re = Regex::new(r#"([a-z]+_)\s*(\d+)\s*"#).unwrap();
+    let result = &re.replace_all(result, "$1$2");
+        //.replace('“', r#"\""#).replace('”', r#"\""#);
+
+//println!("unpack_llm {}", result);
     let h: HashMap<String, String> = serde_json::from_str(result).map_err(anyhow::Error::new)?;
     let mut res: Vec<LlmValue> = vec![];
 
@@ -301,7 +344,7 @@ fn unpack_llm(result: &str, items: &[GPTItem]) -> Result<Vec<LlmValue>, Box<dyn 
             match title {
                 Some(title) => title,
                 None => {
-                    warn!("Bad Title: {:?}", title);
+                    warn!("Bad Title: {i} {:?}", title);
                     res.push((item.title.clone(), "".into(), 0.0, false));
                     continue
                 }
@@ -311,7 +354,7 @@ fn unpack_llm(result: &str, items: &[GPTItem]) -> Result<Vec<LlmValue>, Box<dyn 
             match body {
                 Some(body) => body,
                 None => {
-                    warn!("Bad Body: {:?}", body);
+                    warn!("Bad Body: {i} {:?}", body);
                     res.push((item.title.clone(), "".into(), 0.0, false));
                     continue
                 }
@@ -340,7 +383,7 @@ fn unpack_llm(result: &str, items: &[GPTItem]) -> Result<Vec<LlmValue>, Box<dyn 
 //println!("{:?}", sentiment);
         */
         let sentiment = 0.0;
-        res.push((title.into(), body.into(), sentiment, item.indb));
+        res.push((title.trim().into(), body.trim().into(), sentiment, item.indb));
     }
 
     Ok(res)
@@ -429,17 +472,26 @@ pub fn read_to_vec(source: &str) -> Vec<String> {
     }
 }
 
-fn add_messages(typ: &str, sys: &Vec<String>, messages: &mut Vec<Message>) {
+fn add_messages(typ: &str, sys: &Vec<String>, messages: &mut Vec<GptMessage>) {
     for s in sys {
         add_message(typ, s, messages);
     }
 }
 
-fn add_message(typ: &str, s: &str, messages: &mut Vec<Message>) {
-        let system: Message = Message {
+fn add_message(typ: &str, s: &str, messages: &mut Vec<GptMessage>) {
+        let system: GptMessage = GptMessage {
                 role: typ.to_string(),
                 content: s.to_string(),
             };
 
         messages.push(system);
+}
+
+async fn fetch_url(url: &str, file: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let response = reqwest::get(url).await?;
+    let mut file = std::fs::File::create(file)?;
+    let mut content =  std::io::Cursor::new(response.bytes().await?);
+    std::io::copy(&mut content, &mut file)?;
+
+    Ok(())
 }

@@ -1,6 +1,9 @@
-Message text is supplied as a json object with many numbered titles and bodies.
-Summarize and translate into English each title_NN in less than ${title_len} words into a new title_NN if not already in English.
-Summarize each body_NN in less than ${body_len} words into a new body_NN.
-Explain each body as simply as possible in English.
-Always return a JSON object with exactly the same numbered titles and bodies as supplied but summarized and translated into English.
-Never return addition comments, only valid JSON.
+Message text is supplied as a json object with many numbered titles_NN and bodies_NN.
+Translate each title_NN if necessary into English in less than ${title_len} words into an new title_NN.
+Summarize each body_NN into a paragraph less than ${body_len} words long into a new body_NN.
+The body_NN should talk about the same topic as the title_NN.
+Remove all HTML markup.
+Explain body as simply as possible in grammatical and well formatted English.
+Always return one JSON object with exactly the same numbered titles and bodies as supplied.
+Return ${entries} title_NN and ${entries} body_NN fields.
+Never return addition comments, and return only valid JSON.

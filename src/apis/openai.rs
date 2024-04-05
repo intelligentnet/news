@@ -93,7 +93,7 @@ pub struct EmbeddingData {
 
 // Call Large Language Model (i.e. GPT-4)
 pub async fn call_gpt(messages: Vec<Message>) -> Result<String, Box<dyn std::error::Error + Send>> {
-    let gpt_version: String = std::env::var("GPT_VERSION").map_err(anyhow::Error::new)?;
+    let gpt_version: String = std::env::var("GPT_MODEL").map_err(anyhow::Error::new)?;
     call_gpt_model(&gpt_version, messages, true).await
 }
 
@@ -120,6 +120,11 @@ pub async fn call_gpt_model(model: &str, messages: Vec<Message>, is_json: bool) 
         .json(&chat_completion)
         .send()
         .await;
+/*
+let res = res.unwrap().text().await.unwrap();
+println!("{:?}", res);
+let res: APIResponse = serde_json::from_str(&res).unwrap();
+*/
     let res: APIResponse = res
         .map_err(|e| -> Box<dyn std::error::Error + Send> { Box::new(e) })?
         .json()
@@ -174,7 +179,7 @@ pub async fn call_gpt_image_model(model: &str, prompt: &str, size: &str, n: usiz
     Ok(res.data[0].url.clone())
 }
 
-pub async fn call_embedding_model(model: &str, input: &[String]) -> Result<Vec<f32>, Box<dyn std::error::Error + Send>> {
+pub async fn call_embedding_model(model: &str, input: &[String]) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error + Send>> {
     // Confirm endpoint
     let url: String =
         env::var("GPT_EMBEDDING_URL").expect("GPT_EMBEDDING_URL not found in enviornment variables");
@@ -200,8 +205,10 @@ pub async fn call_embedding_model(model: &str, input: &[String]) -> Result<Vec<f
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send> { Box::new(e) })?;
 
+    let embed: Vec<Vec<f32>> = res.data.iter().map(|e| e.embedding.clone()).collect();
+ 
     // Send Response
-    Ok(res.data[0].embedding.clone())
+    Ok(embed)
 }
 
 async fn get_client() -> Result<Client, Box<dyn std::error::Error + Send>> {
@@ -239,18 +246,10 @@ async fn get_client() -> Result<Client, Box<dyn std::error::Error + Send>> {
     Ok(client)
 }
 
-pub async fn fetch_url(url: &str, file: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let response = reqwest::get(url).await?;
-    let mut file = std::fs::File::create(file)?;
-    let mut content =  std::io::Cursor::new(response.bytes().await?);
-    std::io::copy(&mut content, &mut file)?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::apis::distance::cosine_dist;
 
     #[tokio::test]
     #[ignore]
@@ -258,6 +257,17 @@ mod tests {
         let messages: Vec<Message> = vec![Message { role: "user".into(), content: "What is the meaining of life?".into() }];
         match call_gpt(messages).await {
             Ok(answer) => { println!("{answer}"); assert!(true) },
+            Err(e) => { println!("{e}"); assert!(false) },
+        }
+    }
+    #[tokio::test]
+    async fn test_call_embed() {
+        let messages: Vec<String> = vec!["What is the meaining of life?".into(), "What is the purpose of death?".into()];
+        let model: String = std::env::var("GPT_EMBEDDING_MODEL")
+            .expect("GPT_EMBEDDING_MODEL not found in enviornment variables");
+        match call_embedding_model(&model, &messages).await {
+            Ok(answer) => { println!("{}", cosine_dist(&answer[0], &answer[1])); assert!(true) },
+            //Ok(answer) => { println!("{answer:?}"); assert!(true) },
             Err(e) => { println!("{e}"); assert!(false) },
         }
     }
